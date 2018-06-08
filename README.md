@@ -14,8 +14,12 @@ Derive watersheds upstream of BC hydrometric stations from various sources.
 ### Download required data
 
 #### FWA
-
+If BC FWA data is not already loaded to postgres, load with the provided script
+```
+./01_load_fwa.sh
+```
 #### USGS
+Download USA NHD watershed definitions (entire USA) from https://nhd.usgs.gov/data.html, and load watersheds of interest to postgres:
 ```
 ./02_load_usgs.sh
 ```
