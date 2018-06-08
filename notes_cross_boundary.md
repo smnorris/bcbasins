@@ -2,11 +2,12 @@
 
 ## Canada
 
-- the National Hydrographic Network does not include watershed definitions (I had presumed it did)
+- the National Hydrographic Network does not include detailed watershed definitions, only large workareas.
+
 
 ### Alberta
 
-Get watersheds data and load to postgres:
+Province of Alberta data are available and can be loaded to postgres, however HydroSHEDS data are adequate for our purposes.
 
 ```
 wget https://extranet.gov.ab.ca/srd/geodiscover/srd_pub/inlandWaters/ArcHydro/AlbertaArcHydroPhase2.zip
@@ -29,10 +30,9 @@ Nothing listed at http://www.geomatics.gov.nt.ca/dldsoptions.aspx
 
 ## USA
 
+- NHD data is available for download from https://nhd.usgs.gov/data.html
 - navigation service available for lower 48 using NHDPlus V2.1 via EPA
-- seems to be duplicated here: 
+- watershed boundaries are also available via this API as well: 
     - https://my.usgs.gov/confluence/display/qwdp/Networked+Linked+Data+Index
     - https://cida.usgs.gov/nldi/swagger-ui.html
-
 - NHDPlus highres BETA is in production for WA/ID/MT https://nhd.usgs.gov/NHDPlus_HR.html (10m DEM)
-- 
