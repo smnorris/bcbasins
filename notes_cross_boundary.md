@@ -31,7 +31,7 @@ Nothing is listed at http://www.geomatics.gov.nt.ca/dldsoptions.aspx
 ## USA
 
 - NHD data is available for download from https://nhd.usgs.gov/data.html
-- navigation service available for lower 48 using NHDPlus V2.1 via EPA
+- navigation service available for lower 48 using NHDPlus V2.1 via EPA https://www.epa.gov/waterdata/waters-web-services
 - watershed boundaries are also available via this API as well: 
     - https://my.usgs.gov/confluence/display/qwdp/Networked+Linked+Data+Index
     - https://cida.usgs.gov/nldi/swagger-ui.html
