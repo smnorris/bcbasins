@@ -1,1 +1,4 @@
-# See fwakit for instructions on how to load fwa data
+fwakit download
+fwakit create_db
+fwakit load
+fwakit clean
