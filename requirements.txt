@@ -1,0 +1,2 @@
+-e git://github.com/smnorris/fwakit.git#egg=fwakit
+fiona
