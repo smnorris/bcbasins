@@ -58,7 +58,7 @@ Next, take the results of above and refine the first order watersheds as require
 python 05_create_prelim_watersheds.py
 ```
 
-Finally, aggregate the watersheds and dump to output shapefile:  
+Move the .gdb created by above script to `/data/fwa_temp.gdb`, then  aggregate the watersheds and dump to output shapefile:  
 
 ```
 python 06_create_output_watersheds.py

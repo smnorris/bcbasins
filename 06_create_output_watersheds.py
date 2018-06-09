@@ -14,6 +14,13 @@ from fwakit.util import log
 os.environ["FWA_DB"] = r"postgresql://postgres:postgres@localhost:5432/postgis"
 
 
+def rmshp(shapes):
+    """ delete the shapefiles """
+    for shp in set(shapes):
+        infile = os.path.splitext(shp)[0]
+        for suffix in ["shp", "dbf", "shx", "prj", "sbn", "sbx", "shp.xml", "cpg"]:
+            if os.path.exists(infile+"."+suffix):
+                os.remove(infile+"."+suffix)
 
 def merge_gdb_layers(in_file, out_file, source_field):
     layers = fiona.listlayers(in_file)
@@ -29,35 +36,45 @@ def merge_gdb_layers(in_file, out_file, source_field):
 
 
 
-# after dem watersheds are created in arc
-merge_gdb_layers('data/wsdrefine_dem.gdb', 'data/wsdrefine_dem.shp', 'source')
+# after dem watersheds are created in arc, merge them into a single shapefile
+log('Merging gdb feature classes to data/wsdrefine_dem.shp')
+merge_gdb_layers('data/fwa_temp.gdb', 'data/wsdrefine_dem.shp', 'source')
+
+db = fwa.util.connect()
+db['public.wsdrefine_dem'].drop()
 db.ogr2pg('data/wsdrefine_dem.shp', schema='public')
-watersheds.add_wsdrefine_dem('public.wsdrefine_dem', 'public.wsdrefine_prelim')
+
+log('Adding refined watersheds to preliminary watershed table')
+watersheds.add_wsdrefine(
+    'public.wsdrefine_prelim',
+    'station',
+    db=db)
 
 # dump to shapefile, dissolve in mapshaper, reload
+log('Dumping preliminary watersheds to shapefile and dissolving with mapshaper')
+rmshp('data/wsdrefine_mapshaper.shp')
+rmshp('data/wsdrefine_prelimdiz.shp')
 db.pg2ogr(
-  "SELECT * FROM public.wsdrefine_prelim",
+  "SELECT station, geom FROM public.wsdrefine_prelim",
   driver="ESRI Shapefile",
   outfile="data/wsdrefine_mapshaper.shp"
 )
-log('Dissolving watersheds with mapshaper')
 subprocess.call('mapshaper data/wsdrefine_mapshaper.shp -dissolve station -o data/wsdrefine_prelimdiz.shp', shell=True)
-log('Loading watersheds to postgres')
+
+log('Loading watersheds back to postgres for final cleanup')
 db = fwa.util.connect()
 db['public.wsdrefine_prelimdiz'].drop()
 db.ogr2pg('data/wsdrefine_prelimdiz.shp')
 
 # aggregate with st_union to remove overlaps
 # also, extract just outer ring to remove gaps and do minor buffering
-log('Removing overlaps')
+log('Removing overlaps and cleaning gaps')
 db['public.wsdrefine_agg'].drop()
 sql = """CREATE TABLE public.wsdrefine_agg AS
          SELECT station, st_union(ST_Buffer(ST_Buffer(geom, .001), -.001)) as geom
          FROM public.wsdrefine_prelimdiz
          GROUP BY station"""
 db.execute(sql)
-
-log('Clean up gaps. There may be some in border watersheds.')
 db['public.wsd'].drop()
 sql = """CREATE TABLE public.wsd AS
          SELECT
@@ -71,8 +88,8 @@ sql = """CREATE TABLE public.wsd AS
       """
 db.execute(sql)
 
+rmshp('data/stn_wsds.shp')
 out_file =  r'data/stn_wsds.shp'
 db.pg2ogr('SELECT * FROM public.wsd',
           'ESRI Shapefile',
           out_file)
-
