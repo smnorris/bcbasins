@@ -25,7 +25,7 @@ A relatively high resolution DEM covering BC is required to refine first order w
         
         pip install --user requirements.txt
 
-    Only the script `05_create_prelim_watersheds.py` requires Windows, and `arcpy` is the only external dependency in that script. However, if running the other Python scripts on Windows, you will probably have to [install fiona - and perhaps gdal - manually from pre-built wheels](https://github.com/Toblerity/Fiona#windows). 
+    Note that when running the scripts on Windows, you may have to [install fiona - and perhaps gdal - manually from pre-built wheels](https://github.com/Toblerity/Fiona#windows). 
 
 3. The data load scripts assume that postgres environment variables are set to point to the database to be used. Set and adjust these as required:
    
