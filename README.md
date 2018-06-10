@@ -63,7 +63,7 @@ With these files downloaded, load to postgres with:
 ```
 
 ### DEM
-No script is included for DEM data download, but DEM GeoTIFFs should be  available via `https://s3.amazonaws.com/elevation-tiles-prod/geotiff/{z}/{x}/{y}.tif`
+No script is included for DEM data download, but DEM GeoTIFFs are available via `https://s3.amazonaws.com/elevation-tiles-prod/geotiff/{z}/{x}/{y}.tif`, and a [Python interface is available](https://github.com/bopen/elevation).
 
 ## Create watersheds
 
