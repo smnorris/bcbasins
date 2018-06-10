@@ -16,7 +16,7 @@ Derive watersheds upstream of BC hydrometric stations from [BC Freshwater Atlas]
 Scripts and instructions for download and preparation of source watershed/basin polygons are noted below.  
 
 
-A relatively high resolution DEM covering BC is required to refine first order watersheds in which a site is located (truncate the watershed at the site by using the site as a 'pour point' or 'outlet'). The script has been tested with the [BC 25m DEM](https://www2.gov.bc.ca/gov/content/data/geographic-data-services/topographic-data/elevation/digital-elevation-model) which is not publicly available. Alternatively, [SRTM 1 arc second (~30m) DEM](https://lta.cr.usgs.gov/SRTM1Arc) may be of sufficent resolution and is [easily and freely available via AWS](https://registry.opendata.aws/terrain-tiles/).
+A relatively high resolution DEM covering BC is required to refine first order watersheds in which a site is located (truncate the watershed at the site by using the site as a 'pour point' or 'outlet'). The script has been tested with the [BC 25m DEM](https://www2.gov.bc.ca/gov/content/data/geographic-data-services/topographic-data/elevation/digital-elevation-model) which is not publicly available. Alternatively, [SRTM 1 arc second (~30m) DEM](https://lta.cr.usgs.gov/SRTM1Arc) may be of sufficent resolution and is [easily and freely available via AWS](https://registry.opendata.aws/terrain-tiles/). A Canada wide DEM (derived from the BC TRIM DEM in BC) is available from https://open.canada.ca/data/en/dataset/7f245e4d-76c2-4caa-951a-45d1d2051333.
 
 ## Installation
 
@@ -63,7 +63,10 @@ With these files downloaded, load to postgres with:
 ```
 
 ### DEM
-No script is included for DEM data download, but DEM GeoTIFFs are available via `https://s3.amazonaws.com/elevation-tiles-prod/geotiff/{z}/{x}/{y}.tif`, and a [Python interface is available](https://github.com/bopen/elevation).
+No script is included for DEM data download. Potential data sources:
+- https://open.canada.ca/data/en/dataset/7f245e4d-76c2-4caa-951a-45d1d2051333
+- SRTM via [AWS](https://registry.opendata.aws/terrain-tiles/) at `https://s3.amazonaws.com/elevation-tiles-prod/geotiff/{z}/{x}/{y}.tif`
+- SRTM via [Python interface](https://github.com/bopen/elevation)
 
 ## Create watersheds
 
