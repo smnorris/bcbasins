@@ -68,6 +68,9 @@ No script is included for DEM data download. Potential data sources:
 - SRTM via [AWS](https://registry.opendata.aws/terrain-tiles/) at `https://s3.amazonaws.com/elevation-tiles-prod/geotiff/{z}/{x}/{y}.tif`
 - SRTM via [Python interface](https://github.com/bopen/elevation)
 
+### Points of interest
+A file defining your sites of interest is required. The scripts point to `data/stations.shp` with a unique text column `station`. We assume that for all points, the closest stream is the stream on which the station lies.
+
 ## Create watersheds
 
 First, create the preliminary watersheds. This creates a table of all watersheds upstream of the provided points. It also notes the first order watershed in which the point is located and determines whether this needs to be refined. If the watershed is to be refined, the script generates the temporary shapefiles needed for processing in ArcGIS.  
