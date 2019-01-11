@@ -1,5 +1,5 @@
 # get data and extract
-wget http://prd-tnm.s3-website-us-west-2.amazonaws.com/?prefix=StagedProducts/Hydrography/WBD/National/GDB/NATIONAL_WBD_GDB.zip
+wget https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/WBD/National/GDB/WBD_National_GDB.zip
 
 unzip GDB/NATIONAL_WBD_GDB.zip
 
@@ -13,7 +13,7 @@ ogr2ogr \
   -lco SCHEMA=usgs \
   -lco GEOMETRY_NAME=geom \
   -nln wbdhu12 \
-  -nlt PROMOTE_TO_MULTI \
+  -nlt MULTIPOLYGON \
   -dialect SQLITE \
   -sql "SELECT * FROM WBDHU12 WHERE states LIKE '%%CN%%' OR states LIKE '%%WA%%' OR states LIKE '%%AK%%' OR states LIKE '%%ID%%' OR states LIKE '%%MT%%'" \
   NATIONAL_WBD_GDB/NATIONAL_WBD_GDB.gdb
