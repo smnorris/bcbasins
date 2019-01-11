@@ -1,5 +1,6 @@
 # get data and extract
-wget https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/WBD/National/GDB/NATIONAL_WBD_GDB.zip
+wget http://prd-tnm.s3-website-us-west-2.amazonaws.com/?prefix=StagedProducts/Hydrography/WBD/National/GDB/NATIONAL_WBD_GDB.zip
+
 unzip GDB/NATIONAL_WBD_GDB.zip
 
 # load to postgres
