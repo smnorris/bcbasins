@@ -2,20 +2,27 @@
 # First, BC FWA
 # --------------------------------------------
 # load individual files and then remove - just to save space
+export FWA_DB='postgresql://gis:basins!@localhost:5432/postgis'
+
 fwakit download -f FWA_BC.gdb.zip
+
+fwakit create-db # db already existins but this creates types
+
 fwakit load
-rm fwakit_download/FWA_BC.gdb.zip
+rm -r fwakit_downloads/FWA_BC.gdb
 
 fwakit download -f FWA_STREAM_NETWORKS_SP.gdb.zip
 fwakit load -l fwa_stream_networks_sp
+rm -r fwakit_downloads/FWA_STREAM_NETWORKS_SP.gdb
 
 fwakit download -f FWA_WATERSHEDS_POLY.gdb.zip
 fwakit load -l fwa_watersheds_poly_sp
-rm fwakit_download/FWA_WATERSHEDS_POLY.gdb.zip
+rm -r fwakit_downloads/FWA_WATERSHEDS_POLY.gdb
 
-fwakit download -f FWA_LINEAR_BOUNDARIES_SP.gdb.zip
-fwakit load -l fwa_linear_boundaries_sp
-rm fwakit_download/FWA_LINEAR_BOUNDARIES_SP.gdb.zip
+# we don't have much need for the linear boundaries
+#fwakit download -f FWA_LINEAR_BOUNDARIES_SP.gdb.zip
+#fwakit load -l fwa_linear_boundaries_sp
+#rm -r fwakit_downloads/FWA_LINEAR_BOUNDARIES_SP
 
 fwakit clean
 
