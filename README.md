@@ -4,9 +4,8 @@ Derive watersheds upstream of points. Uses the [BC Freshwater Atlas](https://www
 
 ## Software requirements
 
-- Python (3.6+)
-- ArcGIS Pro (2.2)
-- mapshaper (tested with v0.4.105)
+- Python 3.6
+- NodeJS and Mapshaper (tested with Mapshaper v0.4.105)
 - PostgreSQL/PostGIS (or just access to a server, see [gis_droplet](https://github.com/smnorris/gis_droplet) repository for a sample setup and scripts)
 
 
@@ -21,12 +20,20 @@ For the script to work properly, points must be closest to the stream with which
 
 Presuming ArcGIS and Python are already installed:
 
-1. Install mapshaper
-2. Install required Python libraries:
+1. Install Mapshaper
+    - download NodeJS 64bit binary for Windows, unzip
+    - in command prompt, navigate to uznipped node folder
+    - `npm install -g mapshaper`
 
-        pip install --user requirements.txt
+2. Create virtual environment and install Python requirements:
 
-3. Optional, define the `FWA_DB` connection as an environment variable
+        python -m pip install --user virtualenv
+        SET PATH=C:\Users\%USERNAME%\AppData\Roaming\Python\Python36\Scripts;%PATH%
+        virtualenv venv
+        venv\Scripts\activate
+        pip install -r requirements.txt
+
+3. (Optional) Define the `FWA_DB` connection as an environment variable:
 
         SET FWA_DB=postgresql://username:password@host:5432/postgis
 

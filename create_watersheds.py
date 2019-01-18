@@ -6,7 +6,6 @@ import click
 
 import fwakit as fwa
 from fwakit import watersheds
-from fwakit import watersheds_arcgis
 
 
 def rmshp(shapes):
@@ -37,7 +36,7 @@ def merge_gdb_layers(in_file, out_file, source_field):
 @click.option('--in_layer', '-l', help='Input layer', default='stations')
 @click.option('--out_file', '-o', help='Output shapfile', default='stn_wsds.shp')
 @click.option('--db_url', '-db', help='FWA database', envvar='FWA_DB')
-def create_watersheds(stations, station_id, in_layer, out_file, db_url, dem):
+def create_watersheds(stations, station_id, in_layer, out_file, db_url):
 
     # load stations
     click.echo("Loading input points to postgres")
@@ -80,6 +79,8 @@ def create_watersheds(stations, station_id, in_layer, out_file, db_url, dem):
         db=db
     )
 
+
+def extra():
     # dump data required for processing watersheds with DEM in ArcGIS
     db.pg2ogr(
         "SELECT * FROM public.wsdrefine_hexwsd", "ESRI Shapefile", "wsdrefine_hex.shp"
