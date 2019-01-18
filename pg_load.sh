@@ -22,7 +22,7 @@ rm -r fwakit_downloads/FWA_WATERSHEDS_POLY.gdb
 # we don't have much need for the linear boundaries
 #fwakit download -f FWA_LINEAR_BOUNDARIES_SP.gdb.zip
 #fwakit load -l fwa_linear_boundaries_sp
-#rm -r fwakit_downloads/FWA_LINEAR_BOUNDARIES_SP
+#rm -r fwakit_downloads/FWA_LINEAR_BOUNDARIES_SP.gdb.zip
 
 fwakit clean
 
@@ -32,7 +32,7 @@ fwakit clean
 # get data and extract
 wget https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/WBD/National/GDB/WBD_National_GDB.zip
 
-unzip GDB/NATIONAL_WBD_GDB.zip
+unzip WBD_National_GDB.zip
 
 # load to postgres
 psql -c 'CREATE SCHEMA IF NOT EXISTS usgs'
@@ -47,7 +47,7 @@ ogr2ogr \
   -nlt MULTIPOLYGON \
   -dialect SQLITE \
   -sql "SELECT * FROM WBDHU12 WHERE states LIKE '%%CN%%' OR states LIKE '%%WA%%' OR states LIKE '%%AK%%' OR states LIKE '%%ID%%' OR states LIKE '%%MT%%'" \
-  NATIONAL_WBD_GDB/NATIONAL_WBD_GDB.gdb
+  WBD_National_GDB.gdb
 
 # ignore the various errors on load....
 # index the columns of interest
