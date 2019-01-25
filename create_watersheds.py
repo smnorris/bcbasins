@@ -30,6 +30,18 @@ def merge_gdb_layers(in_file, out_file, source_field):
                 sink.write(feature)
 
 
+def make_sure_path_exists(path):
+    """
+    Make directories in path if they do not exist.
+    Modified from http://stackoverflow.com/a/5032238/1377021
+    """
+    try:
+        os.makedirs(path)
+    except:
+        pass
+    return path
+
+
 @click.command()
 @click.argument("stations")
 @click.option('--station_id', '-id', help='Unique station id', default='station_id')
@@ -37,8 +49,12 @@ def merge_gdb_layers(in_file, out_file, source_field):
 @click.option('--out_file', '-o', help='Output shapfile', default='stn_wsds.shp')
 @click.option('--db_url', '-db', help='FWA database', envvar='FWA_DB')
 def create_watersheds(stations, station_id, in_layer, out_file, db_url):
+    """Create 20k watershed boundaries upstream of provided points
+    """
+    # make a temp data folder in cwd
+    make_sure_path_exists("data")
 
-    # load stations
+    # load points
     click.echo("Loading input points to postgres")
     db = fwa.util.connect(db_url)
 
@@ -79,34 +95,34 @@ def create_watersheds(stations, station_id, in_layer, out_file, db_url):
         db=db
     )
 
-
-def extra():
-    # dump data required for processing watersheds with DEM in ArcGIS
+    # dump data required for processing watersheds with DEM
     db.pg2ogr(
-        "SELECT * FROM public.wsdrefine_hexwsd", "ESRI Shapefile", "wsdrefine_hex.shp"
+        "SELECT * FROM public.wsdrefine_hexwsd", "ESRI Shapefile", "data/wsdrefine_hex.shp"
     )
     db.pg2ogr(
-        "SELECT {}, linear_feature_id AS lnrftrd, blue_line_key AS bllnk, geom ".format(station_id),
-        "FROM public.wsdrefine_streams",
+        """SELECT {}, linear_feature_id AS lnrftrd, blue_line_key AS bllnk, geom
+        FROM public.wsdrefine_streams""".format(station_id),
         "ESRI Shapefile",
-        "wsdrefine_streams.shp",
+        "data/wsdrefine_streams.shp",
+    )
+    fwa.create_geom_from_events("public.stations_referenced", "public.stations_points", db=db)
+    db.pg2ogr(
+            "SELECT * FROM public.stations_points",
+            "ESRI Shapefile",
+            "data/wsdrefine_stations.shp",
     )
 
-    # refine the watersheds with arcgis
-    # output is dumped to data/fwa_temp.gdb
-    watersheds_arcgis.wsdrefine_dem(
-        r"wsdrefine_hex.shp",
-        r"wsdrefine_streams.shp",
+    # for each watershed where DEM refinement is required, run the job
+    watersheds.wsdrefine_dem(
+        r"data/wsdrefine_hex.shp",
+        r"data/wsdrefine_streams.shp",
+        r"data/wsdrefine_stations.shp",
         station_id,
-        in_mem=True
     )
 
-    # after dem watersheds are created in arc, merge them into a single shapefile
-    click.echo("Merging gdb feature classes to data/wsdrefine_dem.shp")
-    merge_gdb_layers("data/fwa_temp.gdb", "data/wsdrefine_dem.shp", "source")
-
+    # load to postgres
     db["public.wsdrefine_dem"].drop()
-    db.ogr2pg("data/wsdrefine_dem.shp", schema="public")
+    db.ogr2pg("data/wsdrefine_dem.shp", out_layer="wsdrefine_dem", s_srs="EPSG:3005", schema="public")
 
     click.echo("Adding refined watersheds to preliminary watershed table")
     watersheds.add_wsdrefine("public.wsdrefine_prelim", station_id, db=db)
