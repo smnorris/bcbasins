@@ -18,11 +18,11 @@ For the script to work properly, points must be closest to the stream with which
 
 ## Installation / Setup
 
-Presuming ArcGIS and Python are already installed:
+Presuming Python is already installed:
 
 1. Install Mapshaper
     - download NodeJS 64bit binary for Windows, unzip
-    - in command prompt, navigate to uznipped node folder
+    - in command prompt, navigate to unzipped node folder
     - `npm install -g mapshaper`
 
 2. Create virtual environment and install Python requirements:
