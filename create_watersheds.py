@@ -70,7 +70,7 @@ def create_watersheds(stations, station_id, in_layer, out_file, db_url):
 
     # create preliminary watersheds (unaggregated first order watersheds)
     # Note that this also creates wsdrefine_hexwsd and wsdrefine_streams for
-    # post processing the watersheds with DEM in ArcGIS
+    # post processing the watersheds with DEM
     db["public.wsdrefine_prelim"].drop()
     watersheds.points_to_prelim_watersheds(
         "public.stations_referenced",
@@ -137,7 +137,7 @@ def create_watersheds(stations, station_id, in_layer, out_file, db_url):
         outfile="data/wsdrefine_mapshaper.shp",
     )
     subprocess.call(
-        "mapshaper data/wsdrefine_mapshaper.shp -dissolve {} -o data/wsdrefine_prelimdiz.shp".format(station_id),
+        "mapshaper-xl data/wsdrefine_mapshaper.shp -dissolve {} -o data/wsdrefine_prelimdiz.shp".format(station_id),
         shell=True,
     )
 
