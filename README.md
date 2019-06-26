@@ -28,15 +28,15 @@ First, prepare an input point layer with a unique id. Take care to ensure that t
 
 Run the first script, loading data:
 
-    python wsds01_load.py <in_file> --in_layer <in_layer> --in_id <unique_id>
+    python bcbasins01_load.py <in_file> --in_layer <in_layer> --in_id <unique_id>
 
 Postprocess the results with the DEM:
 
-    python wsds02_postprocess.py
+    python bcbasins02_postprocess.py
 
 Finally, merge outputs:
 
-    python wsds03_merge.py
+    python bcbasins03_merge.py
 
 Output watersheds are the `wsds_output` folder.
 

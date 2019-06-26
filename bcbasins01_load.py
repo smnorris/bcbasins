@@ -58,9 +58,10 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
         streampt["properties"].update({in_id: pt[in_id]})
 
         # write new point to disk
-        make_sure_path_exists("wsds01_points")
+        out_path = os.path.join("tempfiles", "01_points")
+        make_sure_path_exists(out_path)
         with open(
-            os.path.join("points", "{}.geojson".format(str(pt[in_id]))), "w"
+            os.path.join(out_path, "{}.geojson".format(str(pt[in_id]))), "w"
         ) as f:
             f.write(json.dumps(streampt))
 
@@ -80,9 +81,9 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             # - write to 'postprocess' folder if further processing is needed
             # - write to 'completed' if no postprocessing needed
             if wsd["properties"]["refine_method"] == "DEM":
-                out_path = "wsds02_postprocess"
+                out_path = os.path.join("tempfiles", "02_postprocess")
             else:
-                out_path = "wsds03_completed"
+                out_path = os.path.join("tempfiles", "03_complete")
             make_sure_path_exists(out_path)
             with open(
                 os.path.join(out_path, "{}.geojson".format(str(pt[in_id]))), "w"
@@ -112,10 +113,11 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                     f.write(json.dumps(wsd))
 
                 # expand bounds of hex layer by 250m, get DEM for expanded bounds
-                with open(
-                    os.path.join(out_path, "{}_hex.geojson".format(str(pt[in_id]))), "r"
-                ) as f:
-                    bounds = f.bounds
+                with fiona.Env():
+                    with fiona.open(
+                        os.path.join(out_path, "{}_hex.geojson".format(str(pt[in_id]))), "r"
+                    ) as f:
+                        bounds = f.bounds
                 expansion = 250
                 xmin = bounds[0] - expansion
                 ymin = bounds[1] - expansion
