@@ -1,5 +1,4 @@
 import os
-import json
 
 import requests
 import fiona
@@ -36,11 +35,16 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
     with fiona.Env():
         with fiona.open(in_file, layer=in_layer) as src:
             epsg_code = src.crs["init"].split(":")[1]
+            source_crs = src.crs
+            in_id_type = src.schema["properties"][in_id]
             for f in src:
                 x, y = f["geometry"]["coordinates"]
                 in_points.append(
                     {in_id: f["properties"][in_id], "src_x": x, "src_y": y}
                 )
+
+    # create temp folder structure
+    make_sure_path_exists(os.path.join("tempfiles", "dem"))
 
     # iterate through input points
     for pt in in_points:
@@ -57,13 +61,29 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
         # add unique id to result
         streampt["properties"].update({in_id: pt[in_id]})
 
-        # write new point to disk
-        out_path = os.path.join("tempfiles", "01_points")
-        make_sure_path_exists(out_path)
-        with open(
-            os.path.join(out_path, "{}.geojson".format(str(pt[in_id]))), "w"
-        ) as f:
-            f.write(json.dumps(streampt))
+        pt_schema = {
+            "properties": {
+                "linear_feature_id": "int",
+                "gnis_name": "str",
+                "wscode": "str",
+                "localcode": "str",
+                "blue_line_key": "int",
+                "distance_to_stream": "float",
+                "downstream_route_measure": "float",
+                in_id: in_id_type,
+            },
+            "geometry": "Point",
+        }
+
+        with fiona.open(
+            os.path.join("tempfiles", "01_points.gpkg"),
+            "w",
+            driver="GPKG",
+            layer=str(pt[in_id]),
+            crs=source_crs,
+            schema=pt_schema,
+        ) as dst:
+            dst.write(streampt)
 
         blkey = streampt["properties"]["blue_line_key"]
         meas = streampt["properties"]["downstream_route_measure"]
@@ -77,49 +97,84 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             wsd = r.json()["features"][0]
             wsd["properties"].update({in_id: pt[in_id]})
 
+            wsd_schema = {
+                "properties": {
+                    "wscode": "str",
+                    "localcode": "str",
+                    "area_ha": "float",
+                    "refine_method": "str",
+                    in_id: in_id_type,
+                },
+                "geometry": "Polygon",
+            }
             # write watershed
-            # - write to 'postprocess' folder if further processing is needed
+            # - write to 'postprocess' if further processing is needed
             # - write to 'completed' if no postprocessing needed
             if wsd["properties"]["refine_method"] == "DEM":
-                out_path = os.path.join("tempfiles", "02_postprocess")
+                out_file = os.path.join("tempfiles", "02_postprocess.gpkg")
             else:
-                out_path = os.path.join("tempfiles", "03_complete")
-            make_sure_path_exists(out_path)
-            with open(
-                os.path.join(out_path, "{}.geojson".format(str(pt[in_id]))), "w"
-            ) as f:
-                f.write(json.dumps(wsd))
+                out_file = os.path.join("tempfiles", "03_complete.gpkg")
+            with fiona.open(
+                out_file,
+                "w",
+                driver="GPKG",
+                layer=str(pt[in_id]),
+                crs=source_crs,
+                schema=wsd_schema,
+            ) as dst:
+                dst.write(wsd)
 
             # if DEM post-processing is required, get required data
             if wsd["properties"]["refine_method"] == "DEM":
                 click.echo("requesting additional data for {}".format(pt[in_id]))
 
+                # define schemas for output files
+                stream_schema = {
+                    "properties": {"linear_feature_id": "int"},
+                    "geometry": "MultiLineString",
+                }
+                hex_schema = {
+                    "properties": {"hex_id": "int"},
+                    "geometry": "MultiPolygon",
+                }
+
                 # get stream  (pour point)
                 url = "{}/{}".format(FWA_API_URL + "/watershed_stream", blkey)
                 param = {"downstream_route_measure": meas, "srid": epsg_code}
                 r = requests.get(url, params=param)
-                with open(
-                    os.path.join(out_path, "{}_stream.geojson".format(str(pt[in_id]))),
-                    "w",
-                ) as f:
-                    f.write(json.dumps(wsd))
+                with fiona.Env():
+                    with fiona.open(
+                        out_file,
+                        "w",
+                        driver="GPKG",
+                        layer=str(pt[in_id]) + "_stream",
+                        crs=source_crs,
+                        schema=stream_schema,
+                    ) as dst:
+                        for f in r.json()["features"]:
+                            dst.write(f)
 
-                # get hex grid covering watershed
+                # get hex grid covering watershed to be adjusted
                 url = "{}/{}".format(FWA_API_URL + "/watershed_hex", blkey)
                 param = {"downstream_route_measure": meas, "srid": epsg_code}
                 r = requests.get(url, params=param)
-                with open(
-                    os.path.join(out_path, "{}_hex.geojson".format(str(pt[in_id]))), "w"
-                ) as f:
-                    f.write(json.dumps(wsd))
-
-                # expand bounds of hex layer by 250m, get DEM for expanded bounds
                 with fiona.Env():
                     with fiona.open(
-                        os.path.join(out_path, "{}_hex.geojson".format(str(pt[in_id]))),
-                        "r",
-                    ) as f:
+                        out_file,
+                        "w",
+                        driver="GPKG",
+                        layer=str(pt[in_id]) + "_hex",
+                        crs=source_crs,
+                        schema=hex_schema,
+                    ) as dst:
+                        for f in r.json()["features"]:
+                            dst.write(f)
+                    # get bounds by opening file just written
+                    # NOTE - this will not work if CRS uses degrees
+                    with fiona.open(out_file, "r", layer=str(pt[in_id]) + "_hex") as f:
                         bounds = f.bounds
+
+                # get DEM of hex watershed plus 250m
                 expansion = 250
                 xmin = bounds[0] - expansion
                 ymin = bounds[1] - expansion
@@ -128,7 +183,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 expanded_bounds = (xmin, ymin, xmax, ymax)
                 bcdata.get_dem(
                     expanded_bounds,
-                    os.path.join(out_path, "{}_dem.tif".format(str(pt[in_id]))),
+                    os.path.join("tempfiles", "dem", str(pt[in_id]) + ".tif"),
                 )
 
 
