@@ -16,7 +16,7 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     if arcpy.CheckExtension("Spatial") == "Available":
         arcpy.CheckOutExtension("Spatial")
     else:
-        raise EnvironmentError('Spatial Analyst license unavailable')
+        raise EnvironmentError("Spatial Analyst license unavailable")
 
     arcpy.env.workspace = "IN_MEMORY"
 
@@ -26,73 +26,54 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     arcpy.env.extent = extent
 
     # read inputs
-    arcpy.MakeFeatureLayer_management(
-        in_stream,
-        'streams_fl'
-    )
-    arcpy.MakeFeatureLayer_management(
-        in_wsd,
-        'wsd_fl'
-    )
+    arcpy.MakeFeatureLayer_management(in_stream, "streams_fl")
+    arcpy.MakeFeatureLayer_management(in_wsd, "wsd_fl")
 
-    click.echo('  - writing wsd to temp fc')
+    click.echo("  - writing wsd to temp fc")
 
     # write the watershed to a feature class so we can get the extent
     # and create mask
-    arcpy.Dissolve_management(
-        'wsd_fl',
-        'wsd_fc_tmp'
-    )
+    arcpy.Dissolve_management("wsd_fl", "wsd_fc_tmp")
 
     # set extent to wsd polygon
-    arcpy.env.mask = 'wsd_fc_tmp'
-    extent = arcpy.Describe('wsd_fc_tmp').extent
+    arcpy.env.mask = "wsd_fc_tmp"
+    extent = arcpy.Describe("wsd_fc_tmp").extent
     arcpy.env.extent = extent
 
-    click.echo('  - writing streams to raster')
-    if arcpy.Exists('streams_pourpt'):
-        arcpy.Delete_management('streams_pourpt')
-    arcpy.FeatureToRaster_conversion(
-        'streams_fl',
-        'bllnk',
-        'streams_pourpt',
-        '25'
-    )
+    click.echo("  - writing streams to raster")
+    if arcpy.Exists("streams_pourpt"):
+        arcpy.Delete_management("streams_pourpt")
+    arcpy.FeatureToRaster_conversion("streams_fl", "bllnk", "streams_pourpt", "25")
 
     # fill the dem, calculate flow direction and create watershed raster
-    click.echo('  - filling DEM')
+    click.echo("  - filling DEM")
     fill = arcpy.sa.Fill(in_dem, 100)
-    click.echo('  - calculating flow direction')
-    flow_direction = arcpy.sa.FlowDirection(fill, 'NORMAL')
-    click.echo('  - creating DEM based watershed')
-    wsd_grid = arcpy.sa.Watershed(flow_direction, 'streams_pourpt')
+    click.echo("  - calculating flow direction")
+    flow_direction = arcpy.sa.FlowDirection(fill, "NORMAL")
+    click.echo("  - creating DEM based watershed")
+    wsd_grid = arcpy.sa.Watershed(flow_direction, "streams_pourpt")
 
     # check to make sure there is a result - if all output raster is null,
     # do not try to create a watershed polygon output
     out_is_null = arcpy.sa.IsNull(wsd_grid)
-    check_min_result = arcpy.GetRasterProperties_management(
-        out_is_null,
-        "MINIMUM"
-    )
+    check_min_result = arcpy.GetRasterProperties_management(out_is_null, "MINIMUM")
     check_min = check_min_result.getOutput(0)
-    check_max_result = arcpy.GetRasterProperties_management(
-        out_is_null,
-        "MAXIMUM"
-    )
+    check_max_result = arcpy.GetRasterProperties_management(out_is_null, "MAXIMUM")
     check_max = check_max_result.getOutput(0)
-    if '0' in (check_min, check_max):
-        click.echo('  - writing new watershed to %s' % out_wsd)
-        arcpy.RasterToPolygon_conversion(
-            wsd_grid,
-            out_wsd,
-            "SIMPLIFY")
+    if "0" in (check_min, check_max):
+        click.echo("  - writing new watershed to %s" % out_wsd)
+        arcpy.RasterToPolygon_conversion(wsd_grid, out_wsd, "SIMPLIFY")
         return out_wsd
     else:
         return None
 
 
 @click.command()
-@click.option("--wksp", help="Folder holding input geojson and tif files", default="tempfiles/02_postprocess")
+@click.option(
+    "--wksp",
+    help="Folder holding input geojson and tif files",
+    default="tempfiles/02_postprocess",
+)
 def postprocess(wksp):
     """Process all files in the input folder"""
     # find input shapes
@@ -101,18 +82,15 @@ def postprocess(wksp):
 
         # check all files are present
         pt_id = in_wsd.split(".")[0][-4]
-        in_stream = os.path.join(wksp, pt_id+"_stream.geojson")
-        in_dem = os.path.join(wksp, pt_id+"_dem.tif")
+        in_stream = os.path.join(wksp, pt_id + "_stream.geojson")
+        in_dem = os.path.join(wksp, pt_id + "_dem.tif")
         for f in [in_stream, in_dem]:
             if not os.path.exists(f):
-                return("Required file {} does not exist".format(f))
+                return "Required file {} does not exist".format(f)
 
         # run the job
         wsdrefine_dem(
-            in_wsd,
-            in_stream,
-            in_dem,
-            os.path.join(wksp, pt_id+"_processed.shp")
+            in_wsd, in_stream, in_dem, os.path.join(wksp, pt_id + "_processed.shp")
         )
 
 

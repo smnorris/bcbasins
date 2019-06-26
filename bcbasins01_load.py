@@ -99,7 +99,8 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 param = {"downstream_route_measure": meas, "srid": epsg_code}
                 r = requests.get(url, params=param)
                 with open(
-                    os.path.join(out_path, "{}_stream.geojson".format(str(pt[in_id]))), "w"
+                    os.path.join(out_path, "{}_stream.geojson".format(str(pt[in_id]))),
+                    "w",
                 ) as f:
                     f.write(json.dumps(wsd))
 
@@ -115,7 +116,8 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 # expand bounds of hex layer by 250m, get DEM for expanded bounds
                 with fiona.Env():
                     with fiona.open(
-                        os.path.join(out_path, "{}_hex.geojson".format(str(pt[in_id]))), "r"
+                        os.path.join(out_path, "{}_hex.geojson".format(str(pt[in_id]))),
+                        "r",
                     ) as f:
                         bounds = f.bounds
                 expansion = 250
@@ -126,7 +128,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 expanded_bounds = (xmin, ymin, xmax, ymax)
                 bcdata.get_dem(
                     expanded_bounds,
-                    os.path.join(out_path, "{}_dem.tif".format(str(pt[in_id])))
+                    os.path.join(out_path, "{}_dem.tif".format(str(pt[in_id]))),
                 )
 
 
