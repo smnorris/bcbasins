@@ -4,28 +4,12 @@ Derive watersheds upstream of points. Uses the [BC Freshwater Atlas](https://www
 
 ## Software requirements
 
-- Python 3.6
-- NodeJS and Mapshaper (tested with Mapshaper v0.4.105)
-- PostgreSQL/PostGIS (or just access to a server, see [gis_droplet](https://github.com/smnorris/gis_droplet) repository for a sample setup and scripts)
-
-
-## Data requirements
-
-An input point layer with a unique id.
-
-For the script to work properly, points must be closest to the stream with which they should be associated (for example, a point should be closest to the centerline of the river that it should be associated, not any minor side tributary).
-
+- ArcGIS
+- Python
 
 ## Installation / Setup
 
-Presuming Python is already installed:
-
-1. Install Mapshaper
-    - download NodeJS 64bit binary for Windows, unzip
-    - in command prompt, navigate to unzipped node folder
-    - `npm install -g mapshaper`
-
-2. Create virtual environment and install Python requirements:
+1. Create virtual environment and install Python requirements:
 
         python -m pip install --user virtualenv
         SET PATH=C:\Users\%USERNAME%\AppData\Roaming\Python\Python36\Scripts;%PATH%
@@ -38,6 +22,24 @@ Presuming Python is already installed:
         SET FWA_DB=postgresql://username:password@host:5432/postgis
 
 
-## Create watersheds
+## Usage
 
-    python create_watersheds.py
+First, prepare an input point layer with a unique id. Take care to ensure that the points are closest to the FWA stream with which you want them to be associated - the script simply generates the watershed upstream of the closest stream.  Note also that the script does not consider streams with no value for `local_watershed_code`.
+
+Run the first script, loading data:
+
+    python wsds01_load.py <in_file> --in_layer <in_layer> --in_id <unique_id>
+
+Postprocess the results with the DEM:
+
+    python wsds02_postprocess.py
+
+Finally, merge outputs:
+
+    python wsds03_merge.py
+
+Output watersheds are the `wsds_output` folder.
+
+## Notes
+
+- defining very large watersheds is currently very slow and not recommended (eg Peace River, Fraser River)

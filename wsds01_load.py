@@ -58,7 +58,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
         streampt["properties"].update({in_id: pt[in_id]})
 
         # write new point to disk
-        make_sure_path_exists("wsd01_points")
+        make_sure_path_exists("wsds01_points")
         with open(
             os.path.join("points", "{}.geojson".format(str(pt[in_id]))), "w"
         ) as f:
@@ -80,9 +80,9 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             # - write to 'postprocess' folder if further processing is needed
             # - write to 'completed' if no postprocessing needed
             if wsd["properties"]["refine_method"] == "DEM":
-                out_path = "wsd02_postprocess"
+                out_path = "wsds02_postprocess"
             else:
-                out_path = "wsd03_completed"
+                out_path = "wsds03_completed"
             make_sure_path_exists(out_path)
             with open(
                 os.path.join(out_path, "{}.geojson".format(str(pt[in_id]))), "w"

@@ -92,7 +92,7 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
 
 
 @click.command()
-@click.option("--wksp", help="Folder holding input geojson and tif files", default="postprocess")
+@click.option("--wksp", help="Folder holding input geojson and tif files", default="wsds02_postprocess")
 def postprocess(wksp):
     """Process all files in the input folder"""
     # find input shapes
