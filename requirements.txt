@@ -1,4 +1,0 @@
-wheelhouse/GDAL-2.3.3-cp36-cp36m-win_amd64.whl
-wheelhouse/Fiona-1.8.4-cp36-cp36m-win_amd64.whl
-wheelhouse/rasterio-1.0.13-cp36-cp36m-win_amd64.whl
-fwakit
