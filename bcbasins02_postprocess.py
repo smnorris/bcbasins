@@ -1,7 +1,7 @@
 import os
 import glob
+import sys
 
-import click
 import arcpy
 
 
@@ -29,7 +29,7 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     arcpy.MakeFeatureLayer_management(in_stream, "streams_fl")
     arcpy.MakeFeatureLayer_management(in_wsd, "wsd_fl")
 
-    click.echo("  - writing wsd to temp fc")
+    print("  - writing wsd to temp fc")
 
     # write the watershed to a feature class so we can get the extent
     # and create mask
@@ -40,17 +40,17 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     extent = arcpy.Describe("wsd_fc_tmp").extent
     arcpy.env.extent = extent
 
-    click.echo("  - writing streams to raster")
+    print("  - writing streams to raster")
     if arcpy.Exists("streams_pourpt"):
         arcpy.Delete_management("streams_pourpt")
     arcpy.FeatureToRaster_conversion("streams_fl", "bllnk", "streams_pourpt", "25")
 
     # fill the dem, calculate flow direction and create watershed raster
-    click.echo("  - filling DEM")
+    print("  - filling DEM")
     fill = arcpy.sa.Fill(in_dem, 100)
-    click.echo("  - calculating flow direction")
+    print("  - calculating flow direction")
     flow_direction = arcpy.sa.FlowDirection(fill, "NORMAL")
-    click.echo("  - creating DEM based watershed")
+    print("  - creating DEM based watershed")
     wsd_grid = arcpy.sa.Watershed(flow_direction, "streams_pourpt")
 
     # check to make sure there is a result - if all output raster is null,
@@ -61,22 +61,20 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     check_max_result = arcpy.GetRasterProperties_management(out_is_null, "MAXIMUM")
     check_max = check_max_result.getOutput(0)
     if "0" in (check_min, check_max):
-        click.echo("  - writing new watershed to %s" % out_wsd)
+        print("  - writing new watershed to %s" % out_wsd)
         arcpy.RasterToPolygon_conversion(wsd_grid, out_wsd, "SIMPLIFY")
         return out_wsd
     else:
         return None
 
 
-@click.command()
-@click.option(
-    "--wksp",
-    help="Folder holding input geojson and tif files",
-    default="tempfiles/02_postprocess",
-)
-def postprocess(wksp):
+def postprocess(args):
     """Process all files in the input folder"""
     # find input shapes
+    if len(args) > 1:
+        wksp = args[1]
+    else:
+        wksp = "tempfiles/02_postprocess"
     to_process = glob.glob(os.path.join(wksp, "*_hex.geojson"))
     for in_wsd in to_process:
 
@@ -95,4 +93,4 @@ def postprocess(wksp):
 
 
 if __name__ == "__main__":
-    postprocess()
+    postprocess(sys.argv)
