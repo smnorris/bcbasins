@@ -1,18 +1,8 @@
+import glob
 import os
 import sys
 
 import arcpy
-
-
-def create_wksp(path, gdb):
-    """
-    Create a .gdb workspace in given path
-    """
-    wksp = os.path.join(path, gdb)
-    # create the workspace if it doesn't exist
-    if not arcpy.Exists(wksp):
-        arcpy.CreateFileGDB_management(path, gdb)
-    return os.path.join(path, gdb)
 
 
 def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
@@ -79,33 +69,32 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
 
 
 def postprocess(args):
-    """Process all files in the input folder"""
+    """Run postprocessing of watershed with DEM
+    """
     # find input shapes
     if len(args) > 1:
         wksp = args[1]
     else:
-        wksp = "tempfiles/02_postprocess.gpkg"
-    arcpy.env.workspace = wksp
-    to_process = arcpy.ListFeatureClasses("*_hex")
+        wksp = "tempfiles"
 
-    # create output wksp
-    #create_wksp("tempfiles", "02b_postprocess_out.gdb")
+    for folder in glob.glob(os.path.join(wksp, "*")):
 
-    for in_wsd in to_process:
+        # look for required files
+        if (
+            os.path.exists(os.path.join(folder, "hex.shp"))
+            and os.path.exists(os.path.join(folder, "str.shp"))
+            and os.path.exists(os.path.join(folder, "dem.tif"))
+        ):
 
-        # check all files are present
-        pt_id = in_wsd.split(".")[0][-4]
-        print("Postprocessing "+pt_id)
-        in_stream = os.path.join(wksp, pt_id + "_stream")
-        in_dem = os.path.join("tempfiles", "dem", pt_id + "_dem.tif")
+            print("Postprocessing " + folder)
 
-        # run the job
-        wsdrefine_dem(
-            in_wsd,
-            in_stream,
-            in_dem,
-            os.path.join(wksp, pt_id + "_processed")
-        )
+            # run the job
+            wsdrefine_dem(
+                os.path.join(folder, "hex.shp"),
+                os.path.join(folder, "str.shp"),
+                os.path.join(folder, "dem.tif"),
+                os.path.join(folder, "ref.shp"),
+            )
 
 
 if __name__ == "__main__":

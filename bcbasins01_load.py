@@ -15,7 +15,9 @@ EPA_POINT_SERVICE_URL = "http://ofmpub.epa.gov/waters10/PointIndexing.Service?"
 
 # delineation service:
 # https://www.epa.gov/waterdata/navigation-delineation-service
-EPA_WSD_DELINEATION_URL = "http://ofmpub.epa.gov/waters10/NavigationDelineation.Service?"
+EPA_WSD_DELINEATION_URL = (
+    "http://ofmpub.epa.gov/waters10/NavigationDelineation.Service?"
+)
 
 # See here for info for all EPA WATERS web services
 # https://www.epa.gov/waterdata/waters-web-services
@@ -33,12 +35,10 @@ def make_sure_path_exists(path):
     return path
 
 
-def get_fwa_stream(x, y, epsg_code):
+def get_fwa_stream(x, y, srid):
     """request stream nearest to given point
     """
-    url = "{}/{},{},{}".format(
-        FWA_API_URL + "/nearest_stream", x, y, str(epsg_code)
-    )
+    url = "{}/{},{},{}".format(FWA_API_URL + "/nearest_stream", x, y, str(srid))
     # request the closest stream, get first record
     r = requests.get(url)
     streampt = r.json()["features"][0]
@@ -50,16 +50,16 @@ def get_fwa_stream(x, y, epsg_code):
     return streampt
 
 
-def get_fwa_wsd(blkey, meas, epsg_code):
+def get_fwa_wsd(blkey, meas, srid):
     """request a FWA watershed
     """
     url = "{}/{}".format(FWA_API_URL + "/watershed", blkey)
-    param = {"downstream_route_measure": meas, "srid": epsg_code}
+    param = {"downstream_route_measure": meas, "srid": srid}
     r = requests.get(url, params=param)
     return r.json()["features"][0]
 
 
-def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_file):
+def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_path):
     """get DEM and pour point for watershed of interest
     NOTE - units of input source_crs / srid must be meters
     """
@@ -70,10 +70,7 @@ def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_file):
         "properties": {"linear_feature_id": "int"},
         "geometry": "MultiLineString",
     }
-    hex_schema = {
-        "properties": {"hex_id": "int"},
-        "geometry": "MultiPolygon",
-    }
+    hex_schema = {"properties": {"hex_id": "int"}, "geometry": "MultiPolygon"}
 
     # get stream  (pour point)
     url = "{}/{}".format(FWA_API_URL + "/watershed_stream", blkey)
@@ -81,10 +78,9 @@ def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_file):
     r = requests.get(url, params=param)
     with fiona.Env():
         with fiona.open(
-            out_file,
+            os.path.join(out_path, "stream.shp"),
             "w",
-            driver="GPKG",
-            layer=str(feature_id) + "_stream",
+            driver="ESRI Shapefile",
             crs=source_crs,
             schema=stream_schema,
         ) as dst:
@@ -97,17 +93,16 @@ def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_file):
     r = requests.get(url, params=param)
     with fiona.Env():
         with fiona.open(
-            out_file,
+            os.path.join(out_path, "hex.shp"),
             "w",
-            driver="GPKG",
-            layer=str(feature_id) + "_hex",
+            driver="ESRI Shapefile",
             crs=source_crs,
             schema=hex_schema,
         ) as dst:
             for f in r.json()["features"]:
                 dst.write(f)
         # get bounds by opening file just written
-        with fiona.open(out_file, "r", layer=str(feature_id) + "_hex") as f:
+        with fiona.open(os.path.join(out_path, "hex.shp"), "r") as f:
             bounds = f.bounds
 
     # get DEM of hex watershed plus 250m
@@ -119,10 +114,10 @@ def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_file):
     expanded_bounds = (xmin, ymin, xmax, ymax)
     bcdata.get_dem(
         expanded_bounds,
-        out_file=os.path.join("tempfiles", "dem", str(feature_id) + ".tif"),
+        out_file=os.path.join(out_path, "dem.tif"),
         src_crs="EPSG:{}".format(srid),
         dst_crs="EPSG:{}".format(srid),
-        resolution=25
+        resolution=25,
     )
 
 
@@ -132,8 +127,8 @@ def epa_index_point(in_x, in_y, srid, tolerance):
     Returns stream id, measure of location on stream, and distance from point to stream
     """
     # transform coordinates into (lon,lat)
-    in_srs = Proj(init='epsg:{}'.format(srid))
-    request_srs = Proj(init='epsg:4326')
+    in_srs = Proj(init="epsg:{}".format(srid))
+    request_srs = Proj(init="epsg:4326")
     x, y = transform(in_srs, request_srs, in_x, in_y)
 
     parameters = {
@@ -144,24 +139,22 @@ def epa_index_point(in_x, in_y, srid, tolerance):
         "pOutputPathFlag": "FALSE",
     }
     # make the resquest
-    r = requests.get(
-        EPA_POINT_SERVICE_URL,
-        params=parameters).json()
+    r = requests.get(EPA_POINT_SERVICE_URL, params=parameters).json()
 
     # build a feature from the results
     f = {
-            "type": "Feature",
-            "properties": {
-                "comid": r["output"]["ary_flowlines"][0]["comid"],
-                "measure": r["output"]["ary_flowlines"][0]["fmeasure"],
-                "distance_to_stream": r["output"]["path_distance"],
-                "gnis_name": r["output"]["ary_flowlines"][0]["gnis_name"]
-            },
-            "geometry": {
-                "type": "Point",
-                "coordinates": r["output"]["end_point"]["coordinates"]
-            }
-        }
+        "type": "Feature",
+        "properties": {
+            "comid": r["output"]["ary_flowlines"][0]["comid"],
+            "measure": r["output"]["ary_flowlines"][0]["fmeasure"],
+            "distance_to_stream": r["output"]["path_distance"],
+            "gnis_name": r["output"]["ary_flowlines"][0]["gnis_name"],
+        },
+        "geometry": {
+            "type": "Point",
+            "coordinates": r["output"]["end_point"]["coordinates"],
+        },
+    }
     return f
 
 
@@ -180,12 +173,10 @@ def epa_delineate_watershed(comid, measure):
         "pAggregationFlag": "TRUE",
         "optOutGeomFormat": "GEOJSON",
         "optOutPrettyPrint": 0,
-        "optOutCS": "EPSG:3005"
+        "optOutCS": "EPSG:3005",
     }
     # make the resquest
-    r = requests.get(
-        EPA_WSD_DELINEATION_URL,
-        params=parameters).json()
+    r = requests.get(EPA_WSD_DELINEATION_URL, params=parameters).json()
 
     if r["output"] is not None:
         if len(r["output"]["shape"]["coordinates"]) == 1:
@@ -199,12 +190,12 @@ def epa_delineate_watershed(comid, measure):
                 "wscode": None,
                 "localcode": None,
                 "refine_method": None,
-                "area_ha": r["output"]["total_areasqkm"] * .01
-                },
+                "area_ha": r["output"]["total_areasqkm"] * .01,
+            },
             "geometry": {
                 "type": geomtype,
-                "coordinates": r["output"]["shape"]["coordinates"]
-            }
+                "coordinates": r["output"]["shape"]["coordinates"],
+            },
         }
         return f
     else:
@@ -224,7 +215,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
     in_points = []
     with fiona.Env():
         with fiona.open(in_file, layer=in_layer) as src:
-            epsg_code = src.crs["init"].split(":")[1]
+            srid = src.crs["init"].split(":")[1]
             source_crs = src.crs
             in_id_type = src.schema["properties"][in_id]
             for f in src:
@@ -233,32 +224,35 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                     {in_id: f["properties"][in_id], "src_x": x, "src_y": y}
                 )
 
-    if epsg_code == 4326:
-        return("Input points must be in a projected coordinate system, not lat/lon (for easy DEM extraction)")
-    # create temp folder structure
-    make_sure_path_exists(os.path.join("tempfiles", "dem"))
+    if srid == 4326:
+        return "Input points must be in a projected coordinate system, not lat/lon (for easy DEM extraction)"
 
     # iterate through input points
     for pt in in_points:
 
         click.echo("Processing {}".format(str(pt[in_id])))
 
+        # create temp folder structure
+        temp_folder = os.path.join("tempfiles", "t_" + str(pt[in_id]))
+        make_sure_path_exists(temp_folder)
+
         # find closest stream in BC
-        streampt = get_fwa_stream(pt["src_x"], pt["src_y"], epsg_code)
+        streampt = get_fwa_stream(pt["src_x"], pt["src_y"], srid)
 
         # if the stream is not in terrestrial BC and fairly far from a stream
         # (say 150m), try using the EPA service
-        if streampt["properties"]["bc_ind"] == 'NOTBC' and streampt["properties"]["distance_to_stream"] >= 150:
-            streampt = epa_index_point(x, y, epsg_code, 150)
+        if (
+            streampt["properties"]["bc_ind"] == "NOTBC"
+            and streampt["properties"]["distance_to_stream"] >= 150
+        ):
+            streampt = epa_index_point(x, y, srid, 150)
 
         # add id to point
         streampt["properties"].update({in_id: pt[in_id]})
 
-        # write point to disk as temp geojson
-        out_path = os.path.join("tempfiles", "01_points")
-        make_sure_path_exists(out_path)
+        # write point to disk as geojson
         with open(
-            os.path.join(out_path, "{}.geojson".format(str(pt[in_id]))), "w"
+            os.path.join(temp_folder, "point.geojson".format(str(pt[in_id]))), "w"
         ) as f:
             f.write(json.dumps(streampt))
 
@@ -269,14 +263,13 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 wsd = get_fwa_wsd(
                     streampt["properties"]["blue_line_key"],
                     streampt["properties"]["downstream_route_measure"],
-                    epsg_code
+                    srid,
                 )
 
             # lower 48 usa streams
             elif "comid" in streampt["properties"]:
                 wsd = epa_delineate_watershed(
-                    streampt["properties"]["comid"],
-                    streampt["properties"]["measure"]
+                    streampt["properties"]["comid"], streampt["properties"]["measure"]
                 )
 
             wsd["properties"].update({in_id: pt[in_id]})
@@ -295,33 +288,28 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 "geometry": "Polygon",
             }
             if wsd["properties"]["refine_method"] != "DEM":
-                out_file = os.path.join("tempfiles", "03_complete.gpkg")
+                out_file = "wsd.shp"
 
             elif wsd["properties"]["refine_method"] == "DEM":
-                out_file = os.path.join("tempfiles", "02_postprocess.gpkg")
+                out_file = "postprocess.shp"
                 get_dem_data(
                     streampt["properties"]["blue_line_key"],
                     streampt["properties"]["downstream_route_measure"],
                     pt[in_id],
-                    epsg_code,
+                    srid,
                     source_crs,
-                    out_file
+                    temp_folder,
                 )
 
             # write output wsd
             with fiona.open(
-                out_file,
+                os.path.join(temp_folder, out_file),
                 "w",
-                driver="GPKG",
-                layer=str(pt[in_id]),
+                driver="ESRI Shapefile",
                 crs=source_crs,
                 schema=wsd_schema,
             ) as dst:
                 dst.write(wsd)
-
-            # collect output features
-            #out_pts.append(streampt)
-            #wsds.append(wsd)
 
 
 if __name__ == "__main__":
