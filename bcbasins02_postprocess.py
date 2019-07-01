@@ -43,7 +43,7 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     print("  - writing streams to raster")
     if arcpy.Exists("streams_pourpt"):
         arcpy.Delete_management("streams_pourpt")
-    arcpy.FeatureToRaster_conversion("streams_fl", "bllnk", "streams_pourpt", "25")
+    arcpy.FeatureToRaster_conversion("streams_fl", "linear_fea", "streams_pourpt", "25")
 
     # fill the dem, calculate flow direction and create watershed raster
     print("  - filling DEM")
