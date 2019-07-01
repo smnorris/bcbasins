@@ -133,8 +133,8 @@ def epa_index_point(in_x, in_y, srid, tolerance):
     """
     # transform coordinates into (lon,lat)
     in_srs = Proj(init='epsg:{}'.format(srid))
-    out_srs = Proj(init='epsg:4326')
-    x, y = transform(in_srs, out_srs, in_x, in_y)
+    request_srs = Proj(init='epsg:4326')
+    x, y = transform(in_srs, request_srs, in_x, in_y)
 
     parameters = {
         "pGeometry": "POINT(%s %s)" % (x, y),
@@ -148,14 +148,14 @@ def epa_index_point(in_x, in_y, srid, tolerance):
         EPA_POINT_SERVICE_URL,
         params=parameters).json()
 
-    # build a feature from the results, matching FWA schema
+    # build a feature from the results
     f = {
             "type": "Feature",
             "properties": {
-                "blue_line_key": r["output"]["ary_flowlines"][0]["comid"],
-                "downstream_route_measure": r["output"]["ary_flowlines"][0]["fmeasure"],
+                "comid": r["output"]["ary_flowlines"][0]["comid"],
+                "measure": r["output"]["ary_flowlines"][0]["fmeasure"],
                 "distance_to_stream": r["output"]["path_distance"],
-                "gnis_name": r["output"]["path_distance"]
+                "gnis_name": r["output"]["ary_flowlines"][0]["gnis_name"]
             },
             "geometry": {
                 "type": "Point",
@@ -165,10 +165,10 @@ def epa_index_point(in_x, in_y, srid, tolerance):
     return f
 
 
-def epa_delineate_watershed(feature_id, comid, measure):
+def epa_delineate_watershed(comid, measure):
     """
     Given a location as comid and measure, return geojson representing
-    boundary of watershed upstream
+    boundary of watershed upstream, in BC Albers
     """
     parameters = {
         "pNavigationType": "UT",
@@ -179,17 +179,18 @@ def epa_delineate_watershed(feature_id, comid, measure):
         "pOutputFlag": "FEATURE",
         "pAggregationFlag": "TRUE",
         "optOutGeomFormat": "GEOJSON",
-        "optOutPrettyPrint": 0
+        "optOutPrettyPrint": 0,
+        "optOutCS": "EPSG:3005"
     }
     # make the resquest
     r = requests.get(
         EPA_WSD_DELINEATION_URL,
-        params=parameters)
+        params=parameters).json()
 
-    if r.json()["output"] is not None:
-        if len(r.json()["output"]["shape"]["coordinates"]) == 1:
+    if r["output"] is not None:
+        if len(r["output"]["shape"]["coordinates"]) == 1:
             geomtype = "Polygon"
-        elif len(r.json()["output"]["shape"]["coordinates"]) > 1:
+        elif len(r["output"]["shape"]["coordinates"]) > 1:
             geomtype = "MultiPolygon"
         # build a feature with schema matching fwa schema
         f = {
@@ -197,11 +198,12 @@ def epa_delineate_watershed(feature_id, comid, measure):
             "properties": {
                 "wscode": None,
                 "localcode": None,
-                "area_ha": r.json()["output"]["areasqkm"] * .01
+                "refine_method": None,
+                "area_ha": r["output"]["total_areasqkm"] * .01
                 },
             "geometry": {
                 "type": geomtype,
-                "coordinates": r.json()["output"]["shape"]["coordinates"]
+                "coordinates": r["output"]["shape"]["coordinates"]
             }
         }
         return f
@@ -263,7 +265,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
         if not points_only:
 
             # canada streams
-            if streampt["properties"]["blue_line_key"]:
+            if "blue_line_key" in streampt["properties"]:
                 wsd = get_fwa_wsd(
                     streampt["properties"]["blue_line_key"],
                     streampt["properties"]["downstream_route_measure"],
