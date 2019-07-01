@@ -245,8 +245,8 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
         streampt = get_fwa_stream(pt["src_x"], pt["src_y"], epsg_code)
 
         # if the stream is not in terrestrial BC and fairly far from a stream
-        # (say 500m), try using the EPA service
-        if streampt["properties"]["bc_ind"] == 'NOTBC' and streampt["properties"]["distance_to_stream"] >= 500:
+        # (say 150m), try using the EPA service
+        if streampt["properties"]["bc_ind"] == 'NOTBC' and streampt["properties"]["distance_to_stream"] >= 150:
             streampt = epa_index_point(x, y, epsg_code, 150)
 
         # add id to point
