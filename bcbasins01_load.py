@@ -78,7 +78,7 @@ def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_path):
     r = requests.get(url, params=param)
     with fiona.Env():
         with fiona.open(
-            os.path.join(out_path, "stream.shp"),
+            os.path.join(out_path, "str.shp"),
             "w",
             driver="ESRI Shapefile",
             crs=source_crs,
