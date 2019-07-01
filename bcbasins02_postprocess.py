@@ -1,6 +1,7 @@
 import glob
 import os
 import sys
+import uuid
 
 import arcpy
 
@@ -41,9 +42,10 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     arcpy.env.extent = extent
 
     print("  - writing streams to raster")
-    if arcpy.Exists("streams_pourpt"):
-        arcpy.Delete_management("streams_pourpt")
-    arcpy.FeatureToRaster_conversion("streams_fl", "linear_fea", "streams_pourpt", "25")
+    # for some reason the stream raster doesn't overwrite the existing output
+    # as workaround, create raster using unique name
+    streams_raster = "stream_"+str(uuid.uuid4())
+    arcpy.FeatureToRaster_conversion("streams_fl", "linear_fea", streams_raster, "25")
 
     # fill the dem, calculate flow direction and create watershed raster
     print("  - filling DEM")
@@ -51,7 +53,7 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     print("  - calculating flow direction")
     flow_direction = arcpy.sa.FlowDirection(fill, "NORMAL")
     print("  - creating DEM based watershed")
-    wsd_grid = arcpy.sa.Watershed(flow_direction, "streams_pourpt")
+    wsd_grid = arcpy.sa.Watershed(flow_direction, streams_raster)
 
     # check to make sure there is a result - if all output raster is null,
     # do not try to create a watershed polygon output
