@@ -83,7 +83,7 @@ def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_file):
         with fiona.open(
             out_file,
             "w",
-            driver="GPKG",
+            driver="FileGDB",
             layer=str(feature_id) + "_stream",
             crs=source_crs,
             schema=stream_schema,
@@ -99,7 +99,7 @@ def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_file):
         with fiona.open(
             out_file,
             "w",
-            driver="GPKG",
+            driver="FileGDB",
             layer=str(feature_id) + "_hex",
             crs=source_crs,
             schema=hex_schema,
@@ -293,10 +293,10 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 "geometry": "Polygon",
             }
             if wsd["properties"]["refine_method"] != "DEM":
-                out_file = os.path.join("tempfiles", "03_complete.gpkg")
+                out_file = os.path.join("tempfiles", "03_complete.gdb")
 
             elif wsd["properties"]["refine_method"] == "DEM":
-                out_file = os.path.join("tempfiles", "02_postprocess.gpkg")
+                out_file = os.path.join("tempfiles", "02_postprocess.gdb")
                 get_dem_data(
                     streampt["properties"]["blue_line_key"],
                     streampt["properties"]["downstream_route_measure"],
@@ -310,7 +310,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             with fiona.open(
                 out_file,
                 "w",
-                driver="GPKG",
+                driver="FileGDB",
                 layer=str(pt[in_id]),
                 crs=source_crs,
                 schema=wsd_schema,

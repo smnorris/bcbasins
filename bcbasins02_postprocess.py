@@ -71,13 +71,14 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
 def postprocess(args):
     """Process all files in the input folder"""
     # find input shapes
+    print(args)
     if len(args) > 1:
         wksp = args[1]
     else:
         wksp = "tempfiles/02_postprocess"
     to_process = glob.glob(os.path.join(wksp, "*_hex.geojson"))
     for in_wsd in to_process:
-
+        print(in_wsd)
         # check all files are present
         pt_id = in_wsd.split(".")[0][-4]
         in_stream = os.path.join(wksp, pt_id + "_stream.geojson")
