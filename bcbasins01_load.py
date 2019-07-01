@@ -159,7 +159,7 @@ def epa_index_point(in_x, in_y, srid, tolerance):
             },
             "geometry": {
                 "type": "Point",
-                "coordinates": r.json()["output"]["end_point"]["coordinates"]
+                "coordinates": r["output"]["end_point"]["coordinates"]
             }
         }
     return f
