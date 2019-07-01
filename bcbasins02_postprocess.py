@@ -71,11 +71,12 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
 def postprocess(args):
     """Process all files in the input folder"""
     # find input shapes
-    print(args)
     if len(args) > 1:
         wksp = args[1]
     else:
         wksp = "tempfiles/02_postprocess"
+    print("Processing layers in "+wksp)
+    arcpy.env.workspace = wksp
     to_process = glob.glob(os.path.join(wksp, "*_hex.geojson"))
     for in_wsd in to_process:
         print(in_wsd)
