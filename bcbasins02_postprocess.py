@@ -1,8 +1,18 @@
 import os
-import glob
 import sys
 
 import arcpy
+
+
+def create_wksp(path, gdb):
+    """
+    Create a .gdb workspace in given path
+    """
+    wksp = os.path.join(path, gdb)
+    # create the workspace if it doesn't exist
+    if not arcpy.Exists(wksp):
+        arcpy.CreateFileGDB_management(path, gdb)
+    return os.path.join(path, gdb)
 
 
 def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
@@ -74,23 +84,27 @@ def postprocess(args):
     if len(args) > 1:
         wksp = args[1]
     else:
-        wksp = "tempfiles/02_postprocess"
-    print("Processing layers in "+wksp)
+        wksp = "tempfiles/02_postprocess.gpkg"
     arcpy.env.workspace = wksp
-    to_process = glob.glob(os.path.join(wksp, "*_hex.geojson"))
+    to_process = arcpy.ListFeatureClasses("*_hex")
+
+    # create output wksp
+    #create_wksp("tempfiles", "02b_postprocess_out.gdb")
+
     for in_wsd in to_process:
-        print(in_wsd)
+
         # check all files are present
         pt_id = in_wsd.split(".")[0][-4]
-        in_stream = os.path.join(wksp, pt_id + "_stream.geojson")
-        in_dem = os.path.join(wksp, pt_id + "_dem.tif")
-        for f in [in_stream, in_dem]:
-            if not os.path.exists(f):
-                return "Required file {} does not exist".format(f)
+        print("Postprocessing "+pt_id)
+        in_stream = os.path.join(wksp, pt_id + "_stream")
+        in_dem = os.path.join("tempfiles", "dem", pt_id + "_dem.tif")
 
         # run the job
         wsdrefine_dem(
-            in_wsd, in_stream, in_dem, os.path.join(wksp, pt_id + "_processed.shp")
+            in_wsd,
+            in_stream,
+            in_dem,
+            os.path.join(wksp, pt_id + "_processed")
         )
 
 
