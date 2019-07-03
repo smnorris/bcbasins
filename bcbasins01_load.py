@@ -141,6 +141,8 @@ def epa_index_point(in_x, in_y, srid, tolerance):
     # make the resquest
     r = requests.get(EPA_POINT_SERVICE_URL, params=parameters).json()
 
+    a, b = r["output"]["end_point"]["coordinates"]
+    x_out, y_out = transform(request_srs, in_srs, a, b)
     # build a feature from the results
     f = {
         "type": "Feature",
@@ -152,7 +154,7 @@ def epa_index_point(in_x, in_y, srid, tolerance):
         },
         "geometry": {
             "type": "Point",
-            "coordinates": r["output"]["end_point"]["coordinates"],
+            "coordinates": [x_out, y_out],
         },
     }
     return f
