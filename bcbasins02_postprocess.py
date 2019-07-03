@@ -6,6 +6,16 @@ import uuid
 import arcpy
 
 
+def create_wksp(path, gdb):
+    """Create a .gdb workspace in given path
+    """
+    wksp = os.path.join(path, gdb)
+    # create the workspace if it doesn't exist
+    if not arcpy.Exists(wksp):
+        arcpy.CreateFileGDB_management(path, gdb)
+    return os.path.join(path, gdb)
+
+
 def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     """
     Refine a watershed polygon - extract only areas that flow to supplied stream segment.
@@ -79,6 +89,7 @@ def postprocess(args):
     else:
         wksp = "tempfiles"
 
+    # run the dem postprocessing
     for folder in glob.glob(os.path.join(wksp, "*")):
 
         # look for required files
@@ -97,6 +108,50 @@ def postprocess(args):
                 os.path.join(folder, "dem.tif"),
                 os.path.join(folder, "ref.shp"),
             )
+
+            # make schema of ref shapefile match the rest of the sources
+            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "station", "TEXT", field_length=80)
+            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "wscode", "TEXT", field_length=80)
+            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "localcode", "TEXT", field_length=80)
+            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "area_ha", "FLOAT")
+            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "refine_met", "TEXT", field_length=80)
+            arcpy.DeleteField_management(os.path.join(folder, "ref.shp"), "Id")
+            arcpy.DeleteField_management(os.path.join(folder, "ref.shp"), "gridcode")
+
+            # get watershed code values from postprocess.shp
+            with arcpy.da.SearchCursor(os.path.join(folder, "postprocess.shp"), ['wscode', 'localcode']) as cursor:
+                for row in cursor:
+                    wscode = row[0]
+                    localcode = row[1]
+
+            # set station/wscode values in the ref shapefile 
+            with arcpy.da.UpdateCursor(os.path.join(folder, "ref.shp"), ['station', 'wscode', 'localcode', 'refine_met']) as cursor:
+                for row in cursor:
+                    row[0] = os.path.basename(folder)[2:]
+                    row[1] = wscode
+                    row[2] = localcode
+                    row[3] = "DEM"
+                    cursor.updateRow(row)
+    
+    # merge all outputs 
+    merge_layers = []
+    for folder in glob.glob(os.path.join(wksp, "*")):
+        wsd = os.path.join(folder, "wsd.shp")
+        ref = os.path.join(folder, "ref.shp")
+        postprocess = os.path.join(folder, "postprocess.shp")
+        if os.path.exists(wsd):
+            merge_layers.append(wsd)
+        elif os.path.exists(ref) and os.path.exists(postprocess):
+            merge_layers.append(ref)
+            merge_layers.append(postprocess)
+
+    print("Creating output watersheds.gdb")
+    print(len(merge_layers))
+    print(merge_layers)
+    create_wksp(os.getcwd(), "watersheds.gdb")
+    arcpy.Merge_management(merge_layers, os.path.join("watersheds.gdb", "watersheds_merged"))
+    fields = ["station", "wscode", "localcode", "refine_met"]
+    arcpy.Dissolve_management(os.path.join("watersheds.gdb", "watersheds_merged"), os.path.join("watersheds.gdb", "watersheds_dissolved"), fields)
 
 
 if __name__ == "__main__":
