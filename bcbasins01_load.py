@@ -47,6 +47,8 @@ def get_fwa_stream(x, y, srid):
     streampt["properties"].pop("wscode")
     streampt["properties"].pop("localcode")
     streampt["properties"].pop("linear_feature_id")
+    # and add an empty comid property
+    streampt["properties"]["comid"] = None
     return streampt
 
 
@@ -143,14 +145,16 @@ def epa_index_point(in_x, in_y, srid, tolerance):
 
     a, b = r["output"]["end_point"]["coordinates"]
     x_out, y_out = transform(request_srs, in_srs, a, b)
-    # build a feature from the results
+    # build a feature from the results, matching properties of FWA
     f = {
         "type": "Feature",
         "properties": {
-            "comid": r["output"]["ary_flowlines"][0]["comid"],
-            "measure": r["output"]["ary_flowlines"][0]["fmeasure"],
-            "distance_to_stream": r["output"]["path_distance"],
             "gnis_name": r["output"]["ary_flowlines"][0]["gnis_name"],
+            "blue_line_key": None,
+            "distance_to_stream": r["output"]["path_distance"],
+            "downstream_route_measure": r["output"]["ary_flowlines"][0]["fmeasure"],
+            "bc_ind": 'USA',
+            "comid": r["output"]["ary_flowlines"][0]["comid"],
         },
         "geometry": {
             "type": "Point",
@@ -229,6 +233,19 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
     if srid == 4326:
         return "Input points must be in a projected coordinate system, not lat/lon (for easy DEM extraction)"
 
+    pt_schema = {
+        "properties": {
+            "gnis_name": "str",
+            "blue_line_key": "int",
+            "distance_to_stream": "float",
+            "downstream_route_measure": "float",
+            "bc_ind": "str",
+            "comid": "int",
+            in_id: in_id_type,
+        },
+        "geometry": "Point",
+    }
+
     # iterate through input points
     for pt in in_points:
 
@@ -252,16 +269,20 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
         # add id to point
         streampt["properties"].update({in_id: pt[in_id]})
 
-        # write point to disk as geojson
-        with open(
-            os.path.join(temp_folder, "point.geojson".format(str(pt[in_id]))), "w"
-        ) as f:
-            f.write(json.dumps(streampt))
+        # write referenced point to disk
+        with fiona.open(
+            os.path.join(temp_folder, "point.shp"),
+            "w",
+            driver="ESRI Shapefile",
+            crs=source_crs,
+            schema=pt_schema,
+        ) as dst:
+            dst.write(streampt)
 
         if not points_only:
 
             # canada streams
-            if "blue_line_key" in streampt["properties"]:
+            if streampt["properties"]["bc_ind"] != 'USA':
                 wsd = get_fwa_wsd(
                     streampt["properties"]["blue_line_key"],
                     streampt["properties"]["downstream_route_measure"],
@@ -269,9 +290,10 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 )
 
             # lower 48 usa streams
-            elif "comid" in streampt["properties"]:
+            else:
                 wsd = epa_delineate_watershed(
-                    streampt["properties"]["comid"], streampt["properties"]["measure"]
+                    streampt["properties"]["comid"],
+                    streampt["properties"]["downstream_route_measure"]
                 )
 
             wsd["properties"].update({in_id: pt[in_id]})
