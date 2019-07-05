@@ -1,9 +1,0 @@
-name: bcbasins-env
-dependencies:
-- click
-- gdal
-- fiona
-- rasterio
-- requests
-- pip:
-  - bcdata
