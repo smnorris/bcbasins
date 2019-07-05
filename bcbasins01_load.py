@@ -214,11 +214,13 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             source_crs = src.crs
             in_id_type = src.schema["properties"][in_id]
             for f in src:
-                in_points.append({
-                    in_id: f["properties"][in_id],
-                    "src_x": f["geometry"]["coordinates"][0],
-                    "src_y": f["geometry"]["coordinates"][1]
-                })
+                in_points.append(
+                    {
+                        in_id: f["properties"][in_id],
+                        "src_x": f["geometry"]["coordinates"][0],
+                        "src_y": f["geometry"]["coordinates"][1],
+                    }
+                )
 
     if srid == 4326:
         return "Input points must be in a projected coordinate system, not lat/lon (for easy DEM extraction)"
