@@ -1,5 +1,4 @@
 import os
-import json
 
 import requests
 import fiona
@@ -164,7 +163,7 @@ def epa_index_point(in_x, in_y, srid, tolerance):
     return f
 
 
-def epa_delineate_watershed(comid, measure):
+def epa_delineate_watershed(comid, measure, srid=None):
     """
     Given a location as comid and measure, return geojson representing
     boundary of watershed upstream, in BC Albers
@@ -178,17 +177,14 @@ def epa_delineate_watershed(comid, measure):
         "pOutputFlag": "FEATURE",
         "pAggregationFlag": "TRUE",
         "optOutGeomFormat": "GEOJSON",
-        "optOutPrettyPrint": 0,
-        "optOutCS": "EPSG:3005",
+        "optOutPrettyPrint": 0
     }
+    if srid:
+        parameters["optOutCS"] = "EPSG:"+str(srid),
     # make the resquest
     r = requests.get(EPA_WSD_DELINEATION_URL, params=parameters).json()
 
     if r["output"] is not None:
-        if len(r["output"]["shape"]["coordinates"]) == 1:
-            geomtype = "Polygon"
-        elif len(r["output"]["shape"]["coordinates"]) > 1:
-            geomtype = "MultiPolygon"
         # build a feature with schema matching fwa schema
         f = {
             "type": "Feature",
@@ -198,10 +194,8 @@ def epa_delineate_watershed(comid, measure):
                 "refine_method": None,
                 "area_ha": r["output"]["total_areasqkm"] * .01,
             },
-            "geometry": {
-                "type": geomtype,
-                "coordinates": r["output"]["shape"]["coordinates"],
-            },
+            "geometry": r["output"]["shape"]
+
         }
         return f
     else:
@@ -293,7 +287,8 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             else:
                 wsd = epa_delineate_watershed(
                     streampt["properties"]["comid"],
-                    streampt["properties"]["downstream_route_measure"]
+                    streampt["properties"]["downstream_route_measure"],
+                    srid
                 )
 
             wsd["properties"].update({in_id: pt[in_id]})
