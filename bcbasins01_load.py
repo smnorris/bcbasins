@@ -291,9 +291,6 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
 
             wsd["properties"].update({in_id: pt[in_id]})
 
-            # write watershed
-            # - write to 'postprocess' if further processing is needed
-            # - write to 'completed' if no postprocessing needed
             wsd_schema = {
                 "properties": {
                     "wscode": "str",
@@ -307,6 +304,8 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             if wsd["properties"]["refine_method"] != "DEM":
                 out_file = "wsd.shp"
 
+            # for postprocessing,
+            # get DEM, hex coverage of local watershed, stream line
             elif wsd["properties"]["refine_method"] == "DEM":
                 out_file = "postprocess.shp"
                 get_dem_data(
