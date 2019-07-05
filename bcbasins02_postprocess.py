@@ -148,32 +148,6 @@ def postprocess(args):
                     row[3] = "DEM"
                     cursor.updateRow(row)
 
-    # merge all outputs
-    merge_layers = []
-    for folder in glob.glob(os.path.join(wksp, "*")):
-        wsd = os.path.join(folder, "wsd.shp")
-        ref = os.path.join(folder, "ref.shp")
-        postprocess = os.path.join(folder, "postprocess.shp")
-        if os.path.exists(wsd):
-            merge_layers.append(wsd)
-        elif os.path.exists(ref) and os.path.exists(postprocess):
-            merge_layers.append(ref)
-            merge_layers.append(postprocess)
-
-    print("Creating output watersheds.gdb")
-    print(len(merge_layers))
-    print(merge_layers)
-    create_wksp(os.getcwd(), "watersheds.gdb")
-    arcpy.Merge_management(
-        merge_layers, os.path.join("watersheds.gdb", "watersheds_merged")
-    )
-    fields = ["station", "wscode", "localcode", "refine_met"]
-    arcpy.Dissolve_management(
-        os.path.join("watersheds.gdb", "watersheds_merged"),
-        os.path.join("watersheds.gdb", "watersheds_dissolved"),
-        fields,
-    )
-
 
 if __name__ == "__main__":
     postprocess(sys.argv)
