@@ -34,7 +34,7 @@ Finally, merge outputs:
 
     python bcbasins03_merge.py
 
-Output watersheds are the `wsds_output` folder.
+Output watersheds are the `watersheds.gpkg` file.
 
 ## Notes
 

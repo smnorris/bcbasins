@@ -152,13 +152,10 @@ def epa_index_point(in_x, in_y, srid, tolerance):
             "blue_line_key": None,
             "distance_to_stream": r["output"]["path_distance"],
             "downstream_route_measure": r["output"]["ary_flowlines"][0]["fmeasure"],
-            "bc_ind": 'USA',
+            "bc_ind": "USA",
             "comid": r["output"]["ary_flowlines"][0]["comid"],
         },
-        "geometry": {
-            "type": "Point",
-            "coordinates": [x_out, y_out],
-        },
+        "geometry": {"type": "Point", "coordinates": [x_out, y_out]},
     }
     return f
 
@@ -177,10 +174,10 @@ def epa_delineate_watershed(comid, measure, srid=None):
         "pOutputFlag": "FEATURE",
         "pAggregationFlag": "TRUE",
         "optOutGeomFormat": "GEOJSON",
-        "optOutPrettyPrint": 0
+        "optOutPrettyPrint": 0,
     }
     if srid:
-        parameters["optOutCS"] = "EPSG:"+str(srid),
+        parameters["optOutCS"] = ("EPSG:" + str(srid),)
     # make the resquest
     r = requests.get(EPA_WSD_DELINEATION_URL, params=parameters).json()
 
@@ -194,8 +191,7 @@ def epa_delineate_watershed(comid, measure, srid=None):
                 "refine_method": None,
                 "area_ha": r["output"]["total_areasqkm"] * .01,
             },
-            "geometry": r["output"]["shape"]
-
+            "geometry": r["output"]["shape"],
         }
         return f
     else:
@@ -276,7 +272,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
         if not points_only:
 
             # canada streams
-            if streampt["properties"]["bc_ind"] != 'USA':
+            if streampt["properties"]["bc_ind"] != "USA":
                 wsd = get_fwa_wsd(
                     streampt["properties"]["blue_line_key"],
                     streampt["properties"]["downstream_route_measure"],
@@ -288,7 +284,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
                 wsd = epa_delineate_watershed(
                     streampt["properties"]["comid"],
                     streampt["properties"]["downstream_route_measure"],
-                    srid
+                    srid,
                 )
 
             wsd["properties"].update({in_id: pt[in_id]})

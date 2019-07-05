@@ -54,7 +54,7 @@ def wsdrefine_dem(in_wsd, in_stream, in_dem, out_wsd):
     print("  - writing streams to raster")
     # for some reason the stream raster doesn't overwrite the existing output
     # as workaround, create raster using unique name
-    streams_raster = "stream_"+str(uuid.uuid4())
+    streams_raster = "stream_" + str(uuid.uuid4())
     arcpy.FeatureToRaster_conversion("streams_fl", "linear_fea", streams_raster, "25")
 
     # fill the dem, calculate flow direction and create watershed raster
@@ -110,30 +110,45 @@ def postprocess(args):
             )
 
             # make schema of ref shapefile match the rest of the sources
-            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "station", "TEXT", field_length=80)
-            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "wscode", "TEXT", field_length=80)
-            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "localcode", "TEXT", field_length=80)
-            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "area_ha", "FLOAT")
-            arcpy.AddField_management(os.path.join(folder, "ref.shp"), "refine_met", "TEXT", field_length=80)
+            arcpy.AddField_management(
+                os.path.join(folder, "ref.shp"), "station", "TEXT", field_length=80
+            )
+            arcpy.AddField_management(
+                os.path.join(folder, "ref.shp"), "wscode", "TEXT", field_length=80
+            )
+            arcpy.AddField_management(
+                os.path.join(folder, "ref.shp"), "localcode", "TEXT", field_length=80
+            )
+            arcpy.AddField_management(
+                os.path.join(folder, "ref.shp"), "area_ha", "FLOAT"
+            )
+            arcpy.AddField_management(
+                os.path.join(folder, "ref.shp"), "refine_met", "TEXT", field_length=80
+            )
             arcpy.DeleteField_management(os.path.join(folder, "ref.shp"), "Id")
             arcpy.DeleteField_management(os.path.join(folder, "ref.shp"), "gridcode")
 
             # get watershed code values from postprocess.shp
-            with arcpy.da.SearchCursor(os.path.join(folder, "postprocess.shp"), ['wscode', 'localcode']) as cursor:
+            with arcpy.da.SearchCursor(
+                os.path.join(folder, "postprocess.shp"), ["wscode", "localcode"]
+            ) as cursor:
                 for row in cursor:
                     wscode = row[0]
                     localcode = row[1]
 
-            # set station/wscode values in the ref shapefile 
-            with arcpy.da.UpdateCursor(os.path.join(folder, "ref.shp"), ['station', 'wscode', 'localcode', 'refine_met']) as cursor:
+            # set station/wscode values in the ref shapefile
+            with arcpy.da.UpdateCursor(
+                os.path.join(folder, "ref.shp"),
+                ["station", "wscode", "localcode", "refine_met"],
+            ) as cursor:
                 for row in cursor:
                     row[0] = os.path.basename(folder)[2:]
                     row[1] = wscode
                     row[2] = localcode
                     row[3] = "DEM"
                     cursor.updateRow(row)
-    
-    # merge all outputs 
+
+    # merge all outputs
     merge_layers = []
     for folder in glob.glob(os.path.join(wksp, "*")):
         wsd = os.path.join(folder, "wsd.shp")
@@ -149,9 +164,15 @@ def postprocess(args):
     print(len(merge_layers))
     print(merge_layers)
     create_wksp(os.getcwd(), "watersheds.gdb")
-    arcpy.Merge_management(merge_layers, os.path.join("watersheds.gdb", "watersheds_merged"))
+    arcpy.Merge_management(
+        merge_layers, os.path.join("watersheds.gdb", "watersheds_merged")
+    )
     fields = ["station", "wscode", "localcode", "refine_met"]
-    arcpy.Dissolve_management(os.path.join("watersheds.gdb", "watersheds_merged"), os.path.join("watersheds.gdb", "watersheds_dissolved"), fields)
+    arcpy.Dissolve_management(
+        os.path.join("watersheds.gdb", "watersheds_merged"),
+        os.path.join("watersheds.gdb", "watersheds_dissolved"),
+        fields,
+    )
 
 
 if __name__ == "__main__":
