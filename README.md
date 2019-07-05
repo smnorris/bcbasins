@@ -4,12 +4,12 @@ Derive watersheds upstream of points. Uses the [BC Freshwater Atlas](https://www
 
 ## Software requirements
 
-- ArcGIS
 - Python 3
+- ArcGIS Desktop and Windows for script #2
 
 ## Installation / Setup
 
-1. Requirements for scripts 1 and 3 are best installed to a Python virtual environment:
+1. Requirements for scripts 1 and 3 are best installed to a Python virtual environment. If installing on Windows, download the Fiona and GDAL precompiled wheels from https://www.lfd.uci.edu/~gohlke/pythonlibs/ and adjust the paths in `requirements.txt` to point to these files. A virtualenv is already set up in the project folder on GTS, these would be the sequence of commands to recreate it:
 
         python -m pip install --user virtualenv
         SET PATH=C:\Users\%USERNAME%\AppData\Roaming\Python\Python36\Scripts;%PATH%
@@ -20,7 +20,7 @@ Derive watersheds upstream of points. Uses the [BC Freshwater Atlas](https://www
 
 ## Usage
 
-First, prepare an input point layer with a unique id (default is `station`). Take care to ensure that the points are closest to the stream with which you want them to be associated - the script simply generates the watershed upstream of the closest stream.  Note also that the script does not consider streams with no value for `local_watershed_code`.
+Prepare an input point layer with a unique id (default is `station`) and with points in a projected coordinate system (lat/lon are not supported). Take care to ensure that the points are closest to the stream with which you want them to be associated - the script simply generates the watershed upstream of the closest stream.  Note also that the script does not consider streams with no value for `local_watershed_code`.
 
 To activate the virtual environment for scripts 1 and 3, double click on `bcbasins.bat`
 
@@ -39,10 +39,10 @@ To activate the virtual environment for scripts 1 and 3, double click on `bcbasi
 
 Output watersheds and referenced points are in the `watersheds.gpkg` file. You may want to run a final cleanup by extracting just the exterior rings with this command, run from the virtualenv:
 
-    ogr2ogr -f GPKG watersheds.gpkg -sql "SELECT station, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) FROM watersheds_src" -dialect SQLITE watersheds.gpkg -nln watersheds
+    (venv)> ogr2ogr -f GPKG watersheds.gpkg -sql "SELECT station, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) FROM watersheds_src" -dialect SQLITE watersheds.gpkg -nln watersheds
 
 ## Note
 
-Defining very large watersheds is currently not supported - the process will run out of memory.
+Defining very large watersheds is currently not supported - the database server processing the aggregation will run out of memory.
 
 For large waterseds (eg Peace, Fraser, Thompson, Columbia etc), run the query `fwa_watershedrefined(blue_line_key, measure)` on a machine with the FWA postgres db installed and at least 16-32G memory.
