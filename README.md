@@ -17,10 +17,6 @@ Derive watersheds upstream of points. Uses the [BC Freshwater Atlas](https://www
         venv\Scripts\activate
         pip install -r requirements.txt
 
-3. (Optional) Define the `FWA_DB` connection as an environment variable:
-
-        SET FWA_DB=postgresql://username:password@host:5432/postgis
-
 
 ## Usage
 
