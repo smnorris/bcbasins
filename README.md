@@ -9,7 +9,7 @@ Derive watersheds upstream of points. Uses the [BC Freshwater Atlas](https://www
 
 ## Installation / Setup
 
-1. Requirements for scripts 1 and 3 are best installed to a Python virtual environment. If installing on Windows, download the Fiona and GDAL precompiled wheels from https://www.lfd.uci.edu/~gohlke/pythonlibs/ and adjust the paths in `requirements.txt` to point to these files. A virtualenv is already set up in the project folder on GTS, these would be the sequence of commands to recreate it:
+Requirements for scripts 1 and 3 are best installed to a Python virtual environment. If installing on Windows, download the Fiona and GDAL precompiled wheels from https://www.lfd.uci.edu/~gohlke/pythonlibs/ and adjust the paths in `requirements.txt` to point to these files. A virtualenv is already set up in the project folder on GTS but this would be the general sequence of commands to recreate it:
 
         python -m pip install --user virtualenv
         SET PATH=C:\Users\%USERNAME%\AppData\Roaming\Python\Python36\Scripts;%PATH%
@@ -20,9 +20,9 @@ Derive watersheds upstream of points. Uses the [BC Freshwater Atlas](https://www
 
 ## Usage
 
-Prepare an input point layer with a unique id (default is `station`) and with points in a projected coordinate system (lat/lon are not supported). Take care to ensure that the points are closest to the stream with which you want them to be associated - the script simply generates the watershed upstream of the closest stream.  Note also that the script does not consider streams with no value for `local_watershed_code`.
+Prepare an input point layer with a unique id (default is `station`) and with points in a projected coordinate system (`EPSG:4326` / lat-lon is not supported). Take care to ensure that the points are closest to the stream with which you want them to be associated - the script simply generates the watershed upstream of the closest stream.  Note also that the script does not consider streams with no value for `local_watershed_code` - if your site is on a side channel, ensure that the channel has a value for `local_watershed_code`.
 
-To activate the virtual environment for scripts 1 and 3, double click on `bcbasins.bat`
+To open a command prompt with the virtual environment for scripts 1 and 3 activated, double click on `bcbasins.bat`
 
 1. Run the first script:
 
