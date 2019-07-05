@@ -39,7 +39,8 @@ def merge(wksp, in_id):
     outgpkg = Path("watersheds.gpkg")
 
     # remove output file if it already exists
-    outgpkg.unlink()
+    if outgpkg.exists():
+        outgpkg.unlink()
 
     # merge points
     # https://stackoverflow.com/questions/48874113/concat-multiple-shapefiles-via-geopandas
@@ -76,7 +77,7 @@ def merge(wksp, in_id):
 
     # run this after to extract only exterior rings
     click.echo(
-        """ogr2ogr -f GPKG t.gpkg -sql "SELECT station, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) FROM watersheds_src" -dialect SQLITE watersheds.gpkg -nln watersheds"""
+        """ogr2ogr -f GPKG watersheds.gpkg -sql "SELECT station, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) FROM watersheds_src" -dialect SQLITE watersheds.gpkg -nln watersheds"""
     )
 
 
