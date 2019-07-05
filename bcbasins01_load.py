@@ -131,7 +131,6 @@ def epa_index_point(in_x, in_y, srid, tolerance):
     in_srs = Proj(init="epsg:{}".format(srid))
     request_srs = Proj(init="epsg:4326")
     x, y = transform(in_srs, request_srs, in_x, in_y)
-
     parameters = {
         "pGeometry": "POINT(%s %s)" % (x, y),
         "pResolution": "2",
@@ -189,7 +188,7 @@ def epa_delineate_watershed(comid, measure, srid=None):
                 "wscode": None,
                 "localcode": None,
                 "refine_method": None,
-                "area_ha": r["output"]["total_areasqkm"] * .01,
+                "area_ha": r["output"]["total_areasqkm"] * 100,
             },
             "geometry": r["output"]["shape"],
         }
@@ -215,10 +214,11 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             source_crs = src.crs
             in_id_type = src.schema["properties"][in_id]
             for f in src:
-                x, y = f["geometry"]["coordinates"]
-                in_points.append(
-                    {in_id: f["properties"][in_id], "src_x": x, "src_y": y}
-                )
+                in_points.append({
+                    in_id: f["properties"][in_id],
+                    "src_x": f["geometry"]["coordinates"][0],
+                    "src_y": f["geometry"]["coordinates"][1]
+                })
 
     if srid == 4326:
         return "Input points must be in a projected coordinate system, not lat/lon (for easy DEM extraction)"
@@ -254,7 +254,7 @@ def create_watersheds(in_file, in_layer, in_id, points_only):
             streampt["properties"]["bc_ind"] == "NOTBC"
             and streampt["properties"]["distance_to_stream"] >= 150
         ):
-            streampt = epa_index_point(x, y, srid, 150)
+            streampt = epa_index_point(pt["src_x"], pt["src_y"], srid, 150)
 
         # add id to point
         streampt["properties"].update({in_id: pt[in_id]})
