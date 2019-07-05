@@ -1,0 +1,1 @@
+cmd /k "bcbasins_environment.bat"

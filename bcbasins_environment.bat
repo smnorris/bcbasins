@@ -1,0 +1,2 @@
+REM SET PATH=C:\Users\%USERNAME%\AppData\Roaming\Python\Python36\Scripts;C:\Windows\system32;C:\Windows;Q:\projects\Menv\Streamflow Inventory\scripts\bcbasins\venv\Lib\site-packages\osgeo
+venv\Scripts\activate
