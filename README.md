@@ -26,7 +26,7 @@ To open a command prompt with the virtual environment for scripts 1 and 3 activa
 
 1. Run the first script:
 
-        (venv)> python bcbasins01_load.py <in_file> --in_layer <in_layer> --in_id <unique_id>
+        (venv)> python bcbasins01_load.py <in_file> <unique_id> --in_layer <in_layer>
 
 
 2. From the start menu, open a new `Python Command Prompt`, navigate to the project folder and run the ArcGIS DEM postprocessing of the watersheds:
@@ -35,7 +35,7 @@ To open a command prompt with the virtual environment for scripts 1 and 3 activa
 
 3. Back in the virtualenv command prompt, merge the output watersheds:
 
-        (venv)> python bcbasins03_merge.py
+        (venv)> python bcbasins03_merge.py <unique_id>
 
 Output watersheds and referenced points are in the `watersheds.gpkg` file. You may want to run a final cleanup by extracting just the exterior rings with this command, run from the virtualenv:
 

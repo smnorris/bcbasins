@@ -1,37 +1,14 @@
 from pathlib import Path
-
+import subprocess
 
 import click
 import pandas
 import geopandas
 
 
-def multi2single(gdf):
-    """multi to single is not a geopandas builtin
-    https://github.com/geopandas/geopandas/issues/369
-    """
-    gdf_singlepoly = gdf[gdf.geometry.type == "Polygon"]
-    gdf_multipoly = gdf[gdf.geometry.type == "MultiPolygon"]
-
-    for i, row in gdf_multipoly.iterrows():
-        Series_geometries = pandas.Series(row.geometry)
-        df = pandas.concat(
-            [geopandas.GeoDataFrame(row, crs=gdf_multipoly.crs).T]
-            * len(Series_geometries),
-            ignore_index=True,
-        )
-        df["geometry"] = Series_geometries
-        gdf_singlepoly = pandas.concat([gdf_singlepoly, df])
-
-    gdf_singlepoly.reset_index(inplace=True, drop=True)
-    return gdf_singlepoly
-
-
 @click.command()
+@click.argument("in_id")
 @click.option("--wksp", type=click.Path(exists=True), default="tempfiles")
-@click.option(
-    "--in_id", "-id", help="Unique id of in_file or in_layer", default="station"
-)
 def merge(wksp, in_id):
     """merge output data
     """
@@ -73,12 +50,23 @@ def merge(wksp, in_id):
     dissolved = gdf.dissolve(by=in_id)
     dissolved["geometry"] = dissolved.buffer(.1).buffer(-.1)
     out = dissolved.reset_index()
-    out.to_file("watersheds.gpkg", layer="watersheds_src", driver="GPKG")
 
-    # run this after to extract only exterior rings
-    click.echo(
-        """ogr2ogr -f GPKG watersheds.gpkg -sql "SELECT station, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) FROM watersheds_src" -dialect SQLITE watersheds.gpkg -nln watersheds"""
-    )
+    # rather than monkey with shapely geoms, write merged polys to file and
+    # remove holes with ogr2ogr
+    # (writing shape, it is more tolerant of iffy geometries)
+    out.to_file("wsd.shp", driver="ESRI Shapefile")
+
+    cmd = [
+        "ogr2ogr",
+        "watersheds.shp",
+        "-sql",
+        f"SELECT {in_id}, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) as geom FROM wsd",
+        "-dialect",
+        "SQLITE",
+        "wsd.shp"
+    ]
+    click.echo(" ".join(cmd))
+    subprocess.run(cmd)
 
 
 if __name__ == "__main__":

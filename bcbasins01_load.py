@@ -199,10 +199,10 @@ def epa_delineate_watershed(comid, measure, srid=None):
 
 @click.command()
 @click.argument("in_file")
+@click.argument("in_id")
 @click.option("--in_layer", "-l", help="Input layer held in in_file")
-@click.option("--in_id", "-id", help="Unique id of in_file or in_layer")
 @click.option("--points_only", help="Return only points", is_flag=True)
-def create_watersheds(in_file, in_layer, in_id, points_only):
+def create_watersheds(in_file, in_id, in_layer, points_only):
     """Get watershed boundaries upstream of provided points
     """
 
