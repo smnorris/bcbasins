@@ -30,7 +30,7 @@ def merge(wksp, in_id):
         geopandas.GeoDataFrame
     )
     gdf.crs = {"init": "epsg:3005"}
-    gdf.to_file("watersheds.gpkg", layer="referenced_points", driver="GPKG")
+    gdf.to_file("referenced_points.gpkg", layer="referenced_points", driver="ESRI Shapefile")
 
     # merge watershed polys
     shapefiles = []
@@ -60,7 +60,7 @@ def merge(wksp, in_id):
         "ogr2ogr",
         "watersheds.shp",
         "-sql",
-        f"SELECT {in_id}, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) as geom FROM wsd",
+        f"SELECT {in_id}, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(Geometry)) as Geometry FROM wsd",
         "-dialect",
         "SQLITE",
         "wsd.shp"

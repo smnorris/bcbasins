@@ -40,9 +40,3 @@ To open a command prompt with the virtual environment for scripts 1 and 3 activa
 Output watersheds and referenced points are in the `watersheds.gpkg` file. You may want to run a final cleanup by extracting just the exterior rings with this command, run from the virtualenv:
 
     (venv)> ogr2ogr -f GPKG watersheds.gpkg -sql "SELECT station, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(geom)) FROM watersheds_src" -dialect SQLITE watersheds.gpkg -nln watersheds
-
-## Note
-
-Defining very large watersheds is currently not supported - the database server processing the aggregation will run out of memory.
-
-For large waterseds (eg Peace, Fraser, Thompson, Columbia etc), run the query `fwa_watershedrefined(blue_line_key, measure)` on a machine with the FWA postgres db installed and at least 16-32G memory.
