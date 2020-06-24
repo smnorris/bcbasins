@@ -139,7 +139,7 @@ def postprocess(args):
             # set station/wscode values in the ref shapefile
             with arcpy.da.UpdateCursor(
                 os.path.join(folder, "ref.shp"),
-                ["station", "wscode", "localcode", "refine_met"],
+                ["Station", "wscode", "localcode", "refine_met"],
             ) as cursor:
                 for row in cursor:
                     row[0] = os.path.basename(folder)[2:]
