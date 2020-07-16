@@ -111,7 +111,7 @@ def postprocess(args):
 
             # make schema of ref shapefile match the rest of the sources
             arcpy.AddField_management(
-                os.path.join(folder, "ref.shp"), "station", "TEXT", field_length=80
+                os.path.join(folder, "ref.shp"), "Station", "TEXT", field_length=80
             )
             arcpy.AddField_management(
                 os.path.join(folder, "ref.shp"), "wscode", "TEXT", field_length=80
