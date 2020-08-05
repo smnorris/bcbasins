@@ -109,45 +109,6 @@ def postprocess(args):
                 os.path.join(folder, "ref.shp"),
             )
 
-            # make schema of ref shapefile match the rest of the sources
-            arcpy.AddField_management(
-                os.path.join(folder, "ref.shp"), "Station", "TEXT", field_length=80
-            )
-            arcpy.AddField_management(
-                os.path.join(folder, "ref.shp"), "wscode", "TEXT", field_length=80
-            )
-            arcpy.AddField_management(
-                os.path.join(folder, "ref.shp"), "localcode", "TEXT", field_length=80
-            )
-            arcpy.AddField_management(
-                os.path.join(folder, "ref.shp"), "area_ha", "FLOAT"
-            )
-            arcpy.AddField_management(
-                os.path.join(folder, "ref.shp"), "refine_met", "TEXT", field_length=80
-            )
-            arcpy.DeleteField_management(os.path.join(folder, "ref.shp"), "Id")
-            arcpy.DeleteField_management(os.path.join(folder, "ref.shp"), "gridcode")
-
-            # get watershed code values from postprocess.shp
-            with arcpy.da.SearchCursor(
-                os.path.join(folder, "postprocess.shp"), ["wscode", "localcode"]
-            ) as cursor:
-                for row in cursor:
-                    wscode = row[0]
-                    localcode = row[1]
-
-            # set station/wscode values in the ref shapefile
-            with arcpy.da.UpdateCursor(
-                os.path.join(folder, "ref.shp"),
-                ["Station", "wscode", "localcode", "refine_met"],
-            ) as cursor:
-                for row in cursor:
-                    row[0] = os.path.basename(folder)[2:]
-                    row[1] = wscode
-                    row[2] = localcode
-                    row[3] = "DEM"
-                    cursor.updateRow(row)
-
 
 if __name__ == "__main__":
     postprocess(sys.argv)

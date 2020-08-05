@@ -33,15 +33,22 @@ def merge(wksp, in_id):
     gdf.to_file("referenced_points.shp", layer="referenced_points", driver="ESRI Shapefile")
 
     # merge watershed polys
-    shapefiles = []
+    gdf_list = []
     for folder in workpath.iterdir():
         if (folder / "wsd.shp").exists():
-            shapefiles.append(folder / "wsd.shp")
+            gdf_list.append(geopandas.read_file(folder / "wsd.shp"))
         elif (folder / "postprocess.shp").exists() and (folder / "ref.shp").exists():
-            shapefiles.append(folder / "postprocess.shp")
-            shapefiles.append(folder / "ref.shp")
+            postprocess = geopandas.read_file(folder / "postprocess.shp")
+            ref = geopandas.read_file(folder / "ref.shp")
+            # add values to ref shapefile, set from the postprocess file
+            ref[in_id].values[:] = postprocess[in_id]
+            ref["wscode"].values[:] = postprocess["wscode"]
+            ref["localcode"].values[:] = postprocess["localcode"]
+            ref["refine_met"].values[:] = "DEM"
+            gdf_list.append(postprocess)
+            gdf_list.append(ref)
 
-    gdf = pandas.concat([geopandas.read_file(shp) for shp in shapefiles]).pipe(
+    gdf = pandas.concat(gdf_list).pipe(
         geopandas.GeoDataFrame
     )
     gdf.crs = {"init": "epsg:3005"}
