@@ -61,7 +61,7 @@ def merge(wksp, in_id):
     # rather than monkey with shapely geoms, write merged polys to file
     out.to_file("wsd.shp", driver="ESRI Shapefile")
 
-    click.echo("Writing output watersheds to watersheds.shp"
+    click.echo("Writing output watersheds to watersheds.shp")
     # remove holes with ogr2ogr
     # (writing to shape, it is more tolerant of iffy geometries)
     cmd = [
