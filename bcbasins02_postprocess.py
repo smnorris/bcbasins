@@ -94,8 +94,8 @@ def postprocess(args):
 
         # look for required files
         if (
-            os.path.exists(os.path.join(folder, "hex.shp"))
-            and os.path.exists(os.path.join(folder, "str.shp"))
+            os.path.exists(os.path.join(folder, "hexgrid.shp"))
+            and os.path.exists(os.path.join(folder, "pourpoints.shp"))
             and os.path.exists(os.path.join(folder, "dem.tif"))
         ):
 
@@ -103,10 +103,10 @@ def postprocess(args):
 
             # run the job
             wsdrefine_dem(
-                os.path.join(folder, "hex.shp"),
-                os.path.join(folder, "str.shp"),
+                os.path.join(folder, "hexgrid.shp"),
+                os.path.join(folder, "pourpoints.shp"),
                 os.path.join(folder, "dem.tif"),
-                os.path.join(folder, "ref.shp"),
+                os.path.join(folder, "point.shp"),
             )
 
 
