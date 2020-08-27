@@ -68,7 +68,7 @@ def merge(wksp, in_id):
         "ogr2ogr",
         "watersheds.shp",
         "-sql",
-        f"SELECT {in_id}, wscode, localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(Geometry)) as Geometry FROM wsd",
+        f"SELECT {in_id}, wscode_ltr as wscode, localcode_ as localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(Geometry)) as Geometry FROM wsd",
         "-dialect",
         "SQLITE",
         "wsd.shp"
