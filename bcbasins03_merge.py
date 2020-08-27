@@ -25,7 +25,7 @@ def merge(wksp, in_id):
     for folder in workpath.iterdir():
         if (folder / "point.shp").exists():
             shapefiles.append(folder / "point.shp")
-
+    click.echo("Writing points to referenced_points.shp")
     gdf = pandas.concat([geopandas.read_file(shp) for shp in shapefiles]).pipe(
         geopandas.GeoDataFrame
     )
@@ -37,9 +37,9 @@ def merge(wksp, in_id):
     for folder in workpath.iterdir():
         if (folder / "wsd.shp").exists():
             gdf_list.append(geopandas.read_file(folder / "wsd.shp"))
-        elif (folder / "postprocess.shp").exists() and (folder / "ref.shp").exists():
+        elif (folder / "postprocess.shp").exists() and (folder / "refined.shp").exists():
             postprocess = geopandas.read_file(folder / "postprocess.shp")
-            ref = geopandas.read_file(folder / "ref.shp")
+            ref = geopandas.read_file(folder / "refined.shp")
             # add values to ref shapefile, set from the postprocess file
             ref[in_id].values[:] = postprocess[in_id]
             ref["wscode"].values[:] = postprocess["wscode"]
@@ -58,11 +58,12 @@ def merge(wksp, in_id):
     dissolved["geometry"] = dissolved.buffer(.1).buffer(-.1)
     out = dissolved.reset_index()
 
-    # rather than monkey with shapely geoms, write merged polys to file and
-    # remove holes with ogr2ogr
-    # (writing shape, it is more tolerant of iffy geometries)
+    # rather than monkey with shapely geoms, write merged polys to file
     out.to_file("wsd.shp", driver="ESRI Shapefile")
 
+    click.echo("Writing output watersheds to watersheds.shp"
+    # remove holes with ogr2ogr
+    # (writing to shape, it is more tolerant of iffy geometries)
     cmd = [
         "ogr2ogr",
         "watersheds.shp",

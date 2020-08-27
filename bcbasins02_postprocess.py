@@ -106,7 +106,7 @@ def postprocess(args):
                 os.path.join(folder, "hexgrid.shp"),
                 os.path.join(folder, "pourpoints.shp"),
                 os.path.join(folder, "dem.tif"),
-                os.path.join(folder, "point.shp"),
+                os.path.join(folder, "refined.shp"),
             )
 
 
