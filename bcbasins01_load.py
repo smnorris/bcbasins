@@ -1,136 +1,105 @@
 import os
+import re
 
 import requests
-import fiona
+import geopandas
 import click
 import bcdata
+from pprint import pprint
+from pathlib import Path
 from pyproj import Proj, transform
 
-FWA_API_URL = "https://www.hillcrestgeo.ca/fwa/v1"
-
-# point service:
-# https://www.epa.gov/waterdata/point-indexing-service
+FWA_API_URL = "https://www.hillcrestgeo.ca/fwapg"
 EPA_POINT_SERVICE_URL = "http://ofmpub.epa.gov/waters10/PointIndexing.Service?"
-
-# delineation service:
-# https://www.epa.gov/waterdata/navigation-delineation-service
 EPA_WSD_DELINEATION_URL = (
     "http://ofmpub.epa.gov/waters10/NavigationDelineation.Service?"
 )
 
-# See here for info for all EPA WATERS web services
-# https://www.epa.gov/waterdata/waters-web-services
+# For more info on EPA Services:
+# points      - https://www.epa.gov/waterdata/point-indexing-service
+# deliniation - https://www.epa.gov/waterdata/navigation-delineation-service
+# other       - https://www.epa.gov/waterdata/waters-web-services
 
 
-def make_sure_path_exists(path):
+def geojson2gdf(geojson, out_srid=3005):
+    """Convert provided geojson feature(s) to a BC Albers geodataframe
     """
-    Make directories in path if they do not exist.
-    Modified from http://stackoverflow.com/a/5032238/1377021
-    """
-    try:
-        os.makedirs(path)
-    except:
-        pass
-    return path
-
-
-def get_fwa_stream(x, y, srid):
-    """request stream nearest to given point
-    """
-    url = "{}/{},{},{}".format(FWA_API_URL + "/nearest_stream", x, y, str(srid))
-    # request the closest stream, get first record
-    r = requests.get(url)
-    streampt = r.json()["features"][0]
-
-    # to match USA schema, pop FWA attributes that we don't really need
-    streampt["properties"].pop("wscode")
-    streampt["properties"].pop("localcode")
-    streampt["properties"].pop("linear_feature_id")
-    # and add an empty comid property
-    streampt["properties"]["comid"] = None
-    return streampt
-
-
-def get_fwa_wsd(blkey, meas, srid):
-    """request a FWA watershed
-    """
-    url = "{}/{}".format(FWA_API_URL + "/watershed", blkey)
-    param = {"downstream_route_measure": meas, "srid": srid}
-    r = requests.get(url, params=param)
-    return r.json()["features"][0]
-
-
-def get_dem_data(blkey, meas, feature_id, srid, source_crs, out_path):
-    """get DEM and pour point for watershed of interest
-    NOTE - units of input source_crs / srid must be meters
-    """
-    click.echo("requesting additional data for {}".format(feature_id))
-
-    # define schemas for output files
-    stream_schema = {
-        "properties": {"linear_feature_id": "int"},
-        "geometry": "MultiLineString",
-    }
-    hex_schema = {"properties": {"hex_id": "int"}, "geometry": "MultiPolygon"}
-
-    # get stream  (pour point)
-    url = "{}/{}".format(FWA_API_URL + "/watershed_stream", blkey)
-    param = {"downstream_route_measure": meas, "srid": srid}
-    r = requests.get(url, params=param)
-    with fiona.Env():
-        with fiona.open(
-            os.path.join(out_path, "str.shp"),
-            "w",
-            driver="ESRI Shapefile",
-            crs=source_crs,
-            schema=stream_schema,
-        ) as dst:
-            for f in r.json()["features"]:
-                dst.write(f)
-
-    # get hex grid covering watershed to be adjusted
-    url = "{}/{}".format(FWA_API_URL + "/watershed_hex", blkey)
-    param = {"downstream_route_measure": meas, "srid": srid}
-    r = requests.get(url, params=param)
-    with fiona.Env():
-        with fiona.open(
-            os.path.join(out_path, "hex.shp"),
-            "w",
-            driver="ESRI Shapefile",
-            crs=source_crs,
-            schema=hex_schema,
-        ) as dst:
-            for f in r.json()["features"]:
-                dst.write(f)
-        # get bounds by opening file just written
-        with fiona.open(os.path.join(out_path, "hex.shp"), "r") as f:
-            bounds = f.bounds
-
-    # get DEM of hex watershed plus 250m
-    expansion = 250
-    xmin = bounds[0] - expansion
-    ymin = bounds[1] - expansion
-    xmax = bounds[2] + expansion
-    ymax = bounds[3] + expansion
-    expanded_bounds = (xmin, ymin, xmax, ymax)
-    bcdata.get_dem(
-        expanded_bounds,
-        out_file=os.path.join(out_path, "dem.tif"),
-        src_crs="EPSG:{}".format(srid),
-        dst_crs="EPSG:{}".format(srid),
-        resolution=25,
+    # convert returned feature to a FeatureCollection
+    outjson = dict(type="FeatureCollection", features=[])
+    for result in [geojson]:
+        outjson["features"] += result
+    # return the point as a GDF in using specified EPSG id
+    return geopandas.GeoDataFrame.from_features(outjson, crs="EPSG:4326").to_crs(
+        epsg=out_srid
     )
 
 
-def epa_index_point(in_x, in_y, srid, tolerance):
+def fwa_neareststream(x, y, srid=4326, tolerance=500, num_features=10, as_gdf=False):
+    """Request stream nearest to given point, return as single feature or geopandas dataframe
+    """
+    url = FWA_API_URL + "/functions/fwa_neareststream/items.json"
+    # request the closest stream, get first record
+    r = requests.get(url, params={
+        "x": x,
+        "y": y,
+        "srid": srid,
+        "tolerance": tolerance,
+        "num_features": num_features})
+    if as_gdf:
+        return geojson2gdf(r.json()["features"])
+    else:
+        return r.json()["features"][0]
+
+
+def fwa_watershedatmeasure(blkey, meas, as_gdf=False):
+    """Request watershed upstream of location, return as single feature or as geopandas dataframe
+    """
+    url = FWA_API_URL + "/functions/fwa_watershedatmeasure/items.json"
+    param = {"blue_line_key": blkey, "downstream_route_measure": meas}
+    r = requests.get(url, params=param)
+    if as_gdf:
+        return geojson2gdf(r.json()["features"])
+    else:
+        return r.json()["features"][0]
+
+
+def fwa_watershedhex(blkey, meas, as_gdf=False):
+    """Request 25m hex within fundamental watershed at location specified, return
+    as feature collection or geopandas dataframe
+    """
+    url = FWA_API_URL + "/functions/fwa_watershedhex/items.json"
+    param = {"blue_line_key": blkey, "downstream_route_measure": meas}
+    r = requests.get(url, params=param)
+    # convert returned feature to a FeatureCollection
+    if as_gdf:
+        return geojson2gdf(r.json()["features"])
+    else:
+        return r.json()["features"]
+
+
+def fwa_watershedstream(blkey, meas, as_gdf=False):
+    """Request upstream stream segments within fundamental watershed at location specified.
+    Return as feature collection or geopandas dataframe
+    """
+    url = FWA_API_URL + "/functions/fwa_watershedstream/items.json"
+    param = {"blue_line_key": blkey, "downstream_route_measure": meas}
+    r = requests.get(url, params=param)
+    if as_gdf:
+        return geojson2gdf(r.json()["features"])
+    else:
+        return r.json()["features"]
+
+
+def epa_index_point(x, y, srid=4326, tolerance=150, as_gdf=False):
     """
     Provided a location as x,y,srid, find nearest NHD stream within tolerance
     Returns stream id, measure of location on stream, and distance from point to stream
     """
     # transform coordinates into (lon,lat)
-    in_srs = Proj(init="epsg:{}".format(srid))
-    request_srs = Proj(init="epsg:4326")
-    x, y = transform(in_srs, request_srs, in_x, in_y)
+    if srid != 4326:
+        in_srs = Proj(init="epsg:{}".format(srid))
+        request_srs = Proj(init="epsg:4326")
+        x, y = transform(in_srs, request_srs, x, y)
     parameters = {
         "pGeometry": "POINT(%s %s)" % (x, y),
         "pResolution": "2",
@@ -141,9 +110,14 @@ def epa_index_point(in_x, in_y, srid, tolerance):
     # make the resquest
     r = requests.get(EPA_POINT_SERVICE_URL, params=parameters).json()
 
-    a, b = r["output"]["end_point"]["coordinates"]
-    x_out, y_out = transform(request_srs, in_srs, a, b)
-    # build a feature from the results, matching properties of FWA
+    # extract the coordinates on the nearest stream
+    x_indexed, y_indexed = r["output"]["end_point"]["coordinates"]
+
+    # reproject if necessary
+    if srid != 4326:
+        x_indexed, y_indexed = transform(request_srs, in_srs, x_indexed, y_indexed)
+
+    # build a feature from the coordinates, matching properties of FWA for convenience
     f = {
         "type": "Feature",
         "properties": {
@@ -154,15 +128,19 @@ def epa_index_point(in_x, in_y, srid, tolerance):
             "bc_ind": "USA",
             "comid": r["output"]["ary_flowlines"][0]["comid"],
         },
-        "geometry": {"type": "Point", "coordinates": [x_out, y_out]},
+        "geometry": {"type": "Point", "coordinates": [x_indexed, y_indexed]},
     }
-    return f
+    # transform to geodataframe if specified
+    if as_gdf:
+        return geojson2gdf(f)
+    else:
+        return f
 
 
-def epa_delineate_watershed(comid, measure, srid=None):
+def epa_delineate_watershed(comid, measure, as_gdf=False):
     """
-    Given a location as comid and measure, return geojson representing
-    boundary of watershed upstream, in BC Albers
+    Given a location as comid and measure, return boundary of watershed upstream
+    (as geojson/wgs84 or geodataframe/bc albers)
     """
     parameters = {
         "pNavigationType": "UT",
@@ -175,8 +153,7 @@ def epa_delineate_watershed(comid, measure, srid=None):
         "optOutGeomFormat": "GEOJSON",
         "optOutPrettyPrint": 0,
     }
-    if srid:
-        parameters["optOutCS"] = ("EPSG:" + str(srid),)
+
     # make the resquest
     r = requests.get(EPA_WSD_DELINEATION_URL, params=parameters).json()
 
@@ -192,140 +169,189 @@ def epa_delineate_watershed(comid, measure, srid=None):
             },
             "geometry": r["output"]["shape"],
         }
-        return f
+        if as_gdf:
+            return geojson2gdf(f)
+        else:
+            return f
     else:
         return None
+
+
+def find_ngrams(text: str, number: int = 3) -> set:
+    """
+    returns a set of ngrams for the given string
+    :param text: the string to find ngrams for
+    :param number: the length the ngrams should be. defaults to 3 (trigrams)
+    :return: set of ngram strings
+    """
+
+    if not text:
+        return set()
+
+    words = [f'  {x} ' for x in re.split(r'\W+', text.lower()) if x.strip()]
+
+    ngrams = set()
+
+    for word in words:
+        for x in range(0, len(word) - number + 1):
+            ngrams.add(word[x:x+number])
+
+    return ngrams
+
+
+def similarity(text1: str, text2: str, number: int = 3) -> float:
+    """
+    Finds the similarity between 2 strings using ngrams.
+    0 being completely different strings, and 1 being equal strings
+    """
+    # https://stackoverflow.com/questions/46198597/python-string-matching-exactly-equal-to-postgresql-similarity-function
+    ngrams1 = find_ngrams(text1, number)
+    ngrams2 = find_ngrams(text2, number)
+
+    num_unique = len(ngrams1 | ngrams2)
+    num_equal = len(ngrams1 & ngrams2)
+
+    return float(num_equal) / float(num_unique)
+
+
+def distance_name_match(in_df, name, column="gnis_name", keep_ranks=False):
+    """Return top ranked row in df, ranking by
+    - distance_to_stream (weight=0.3)
+    - matching input 'name' to supplied column, using trgrm similaryt (weight=0.7)
+    """
+    # https://stackoverflow.com/questions/46198597/python-string-matching-exactly-equal-to-postgresql-similarity-function
+    in_df["name_rank"] = in_df.apply(lambda row: similarity(row[column], name), axis=1)
+    in_df["distance_rank"] = in_df.apply(lambda row: (500 - row.distance_to_stream) / 500, axis=1)
+    in_df["match_rank"] = in_df.apply(lambda row: row.name_rank * .8 + row.distance_rank * .2, axis=1)
+    # drop the ranking columns by default
+    if keep_ranks:
+        return in_df.sort_values(["match_rank"], ascending=False).head(1).reset_index().drop(["index"], axis=1)
+    else:
+        return in_df.sort_values(["match_rank"], ascending=False).head(1).reset_index().drop(["index", "name_rank", "distance_rank", "match_rank"], axis=1)
 
 
 @click.command()
 @click.argument("in_file")
 @click.argument("in_id")
+@click.option("--in_name", "-n", help="Text column present in in_file for matching to stream name")
 @click.option("--in_layer", "-l", help="Input layer held in in_file")
 @click.option("--points_only", help="Return only points", is_flag=True)
-def create_watersheds(in_file, in_id, in_layer, points_only):
+def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=None):
     """Get watershed boundaries upstream of provided points
     """
 
     # load input points
     in_points = []
-    with fiona.Env():
-        with fiona.open(in_file, layer=in_layer) as src:
-            srid = src.crs["init"].split(":")[1]
-            source_crs = src.crs
-            in_id_type = src.schema["properties"][in_id]
-            for f in src:
-                in_points.append(
-                    {
-                        in_id: f["properties"][in_id],
-                        "src_x": f["geometry"]["coordinates"][0],
-                        "src_y": f["geometry"]["coordinates"][1],
-                    }
-                )
+    in_points = geopandas.read_file(in_file, layer=in_layer)
+    srid = in_points.crs.to_epsg()
 
-    if srid == 4326:
-        return "Input points must be in a projected coordinate system, not lat/lon (for easy DEM extraction)"
-
-    pt_schema = {
-        "properties": {
-            "gnis_name": "str",
-            "blue_line_key": "int",
-            "distance_to_stream": "float",
-            "downstream_route_measure": "float",
-            "bc_ind": "str",
-            "comid": "int",
-            in_id: in_id_type,
-        },
-        "geometry": "Point",
-    }
+    # This just makes things simpler.
+    if srid != 3005:
+        return "Input points must be BC Albers"
 
     # iterate through input points
-    for pt in in_points:
+    for index, pt in in_points.iterrows():
 
-        click.echo("Processing {}".format(str(pt[in_id])))
-
+        click.echo("-----------------------------------------------------------")
+        click.echo("* INPUT POINT")
+        click.echo(pt)
         # create temp folder structure
         temp_folder = os.path.join("tempfiles", "t_" + str(pt[in_id]))
-        make_sure_path_exists(temp_folder)
+        Path(temp_folder).mkdir(parents=True, exist_ok=True)
 
-        # find closest stream in BC
-        streampt = get_fwa_stream(pt["src_x"], pt["src_y"], srid)
+        # find 10 closest streams in BC, within 500m
+        nearest_streams = fwa_neareststream(pt.geometry.x, pt.geometry.y, srid, tolerance=500, num_features=10, as_gdf=True)
 
-        # if the stream is not in terrestrial BC and fairly far from a stream
-        # (say 150m), try using the EPA service
+        # The closest stream is not necessarily the one we want!
+        # If we have a name column to compare against, try getting the best combination
+        # of name and distance matching by comparing to the stream gnis_name
+        if in_name:
+            matched_stream = distance_name_match(nearest_streams, pt[in_name])
+        # if no name provided, just use the first result
+        else:
+            matched_stream = nearest_streams.head(1)
+
+        # simplify the schema for standardization between BC/USA
+        matched_stream = matched_stream.drop(
+            ["wscode_ltree", "localcode_ltree", "linear_feature_id"], axis=1
+        )
+        matched_stream["comid"] = ""
+
+        # if the nearest stream is not in BC or is more than 150m from the
+        # input point, try the EPA service
         if (
-            streampt["properties"]["bc_ind"] == "NOTBC"
-            and streampt["properties"]["distance_to_stream"] >= 150
+            matched_stream.iloc[0]["bc_ind"] == "NOTBC"
+            and matched_stream.iloc[0]["distance_to_stream"] >= 150
         ):
-            streampt = epa_index_point(pt["src_x"], pt["src_y"], srid, 150)
+            matched_stream = epa_index_point(
+                pt["src_x"], pt["src_y"], srid, 150, as_gdf=True
+            )
 
-        # add id to point
-        streampt["properties"].update({in_id: pt[in_id]})
+        # add input id column and value to point
+        matched_stream.at[0, in_id] = pt[in_id]
 
-        # write referenced point to disk
-        with fiona.open(
-            os.path.join(temp_folder, "point.shp"),
-            "w",
-            driver="ESRI Shapefile",
-            crs=source_crs,
-            schema=pt_schema,
-        ) as dst:
-            dst.write(streampt)
+        # write indexed point to shp
+        matched_stream.to_file(os.path.join(temp_folder, "point.shp"))
 
+        # drop geom for easy dump to stdout so user know what stream we've matched to
+        click.echo("")
+        click.echo("* MATCHED STREAM")
+        click.echo(pprint(matched_stream.iloc[0].drop("geometry").to_dict()))
+
+        # extract the required values from matched_stream gdf, just to
+        # keep code below tidier
+        blue_line_key = matched_stream.iloc[0]["blue_line_key"]
+        downstream_route_measure = matched_stream.iloc[0]["downstream_route_measure"]
+        comid = matched_stream.iloc[0]["comid"]
+
+        # if not just indexing points, start deriving the watershed
         if not points_only:
 
-            # canada streams
-            if streampt["properties"]["bc_ind"] != "USA":
-                wsd = get_fwa_wsd(
-                    streampt["properties"]["blue_line_key"],
-                    streampt["properties"]["downstream_route_measure"],
-                    srid,
+            # Canadian streams
+            if matched_stream.iloc[0]["bc_ind"] != "USA":
+                wsd = fwa_watershedatmeasure(
+                    blue_line_key, downstream_route_measure, as_gdf=True
                 )
 
-            # lower 48 usa streams
+            # USA streams (only lower 48 states supported)
             else:
                 wsd = epa_delineate_watershed(
-                    streampt["properties"]["comid"],
-                    streampt["properties"]["downstream_route_measure"],
-                    srid,
+                    comid, downstream_route_measure, as_gdf=True
                 )
 
-            wsd["properties"].update({in_id: pt[in_id]})
+            # add id to watershed
+            wsd.at[0, in_id] = pt[in_id]
 
-            wsd_schema = {
-                "properties": {
-                    "wscode": "str",
-                    "localcode": "str",
-                    "area_ha": "float",
-                    "refine_method": "str",
-                    in_id: in_id_type,
-                },
-                "geometry": "Polygon",
-            }
-            if wsd["properties"]["refine_method"] != "DEM":
-                out_file = "wsd.shp"
+            # write output shapefile
+            wsd.to_file(os.path.join(temp_folder, "wsd.shp"))
 
-            # for postprocessing,
-            # get DEM, hex coverage of local watershed, stream line
-            elif wsd["properties"]["refine_method"] == "DEM":
-                out_file = "postprocess.shp"
-                get_dem_data(
-                    streampt["properties"]["blue_line_key"],
-                    streampt["properties"]["downstream_route_measure"],
-                    pt[in_id],
-                    srid,
-                    source_crs,
-                    temp_folder,
+            # if we are postprocessing with DEM, get additional data
+            if wsd.iloc[0]["refine_method"] == "DEM":
+                click.echo("requesting additional data for {}".format(pt[in_id]))
+                # fwapg requests
+                hexgrid = fwa_watershedhex(
+                    blue_line_key, downstream_route_measure, as_gdf=True
                 )
-
-            # write output wsd
-            with fiona.open(
-                os.path.join(temp_folder, out_file),
-                "w",
-                driver="ESRI Shapefile",
-                crs=source_crs,
-                schema=wsd_schema,
-            ) as dst:
-                dst.write(wsd)
+                hexgrid.to_file(os.path.join(temp_folder, "hexgrid.shp"))
+                pourpoints = fwa_watershedstream(
+                    blue_line_key, downstream_route_measure, as_gdf=True
+                )
+                pourpoints.to_file(os.path.join(temp_folder, "pourpoints.shp"))
+                # DEM of hex watershed plus 250m
+                bounds = list(hexgrid.geometry.total_bounds)
+                expansion = 250
+                xmin = bounds[0] - expansion
+                ymin = bounds[1] - expansion
+                xmax = bounds[2] + expansion
+                ymax = bounds[3] + expansion
+                expanded_bounds = (xmin, ymin, xmax, ymax)
+                bcdata.get_dem(
+                    expanded_bounds,
+                    out_file=os.path.join(temp_folder, "dem.tif"),
+                    src_crs="EPSG:{}".format(srid),
+                    dst_crs="EPSG:{}".format(srid),
+                    resolution=25,
+                )
 
 
 if __name__ == "__main__":
