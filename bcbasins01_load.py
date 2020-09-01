@@ -68,7 +68,7 @@ def fwa_watershedhex(blkey, meas, as_gdf=False):
     as feature collection or geopandas dataframe
     """
     url = FWA_API_URL + "/functions/fwa_watershedhex/items.json"
-    param = {"blue_line_key": blkey, "downstream_route_measure": meas}
+    param = {"blue_line_key": blkey, "downstream_route_measure": meas, "limit":10000}
     r = requests.get(url, params=param)
     # convert returned feature to a FeatureCollection
     if as_gdf:
