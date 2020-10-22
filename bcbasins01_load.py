@@ -3,6 +3,7 @@ import re
 
 import requests
 import geopandas
+import pandas
 import click
 import bcdata
 from pprint import pprint
@@ -34,10 +35,10 @@ def geojson2gdf(geojson, out_srid=3005):
     )
 
 
-def fwa_neareststream(x, y, srid=4326, tolerance=500, num_features=10, as_gdf=False):
+def fwa_indexpoint(x, y, srid=4326, tolerance=500, num_features=10, as_gdf=False):
     """Request stream nearest to given point, return as single feature or geopandas dataframe
     """
-    url = FWA_API_URL + "/functions/fwa_neareststream/items.json"
+    url = FWA_API_URL + "/functions/fwa_indexpoint/items.json"
     # request the closest stream, get first record
     r = requests.get(
         url,
@@ -49,10 +50,16 @@ def fwa_neareststream(x, y, srid=4326, tolerance=500, num_features=10, as_gdf=Fa
             "num_features": num_features,
         },
     )
-    if as_gdf:
-        return geojson2gdf(r.json()["features"])
+    if r.status_code == requests.codes.ok:
+        if as_gdf:
+            return geojson2gdf(r.json()["features"])
+        else:
+            return r.json()["features"][0]
     else:
-        return r.json()["features"][0]
+        if as_gdf:
+            return pandas.DataFrame({'' : []})
+        else:
+            return None
 
 
 def fwa_watershedatmeasure(blkey, meas, as_gdf=False):
@@ -134,14 +141,16 @@ def epa_index_point(x, y, srid=4326, tolerance=150, as_gdf=False):
         },
         "geometry": {"type": "Point", "coordinates": [x_indexed, y_indexed]},
     }
-    # transform to geodataframe if specified
+    outjson = dict(type="FeatureCollection", features=[])
+    for result in [[f]]:
+        outjson["features"] += result
     if as_gdf:
-        return geojson2gdf(f)
+        return geopandas.GeoDataFrame.from_features(outjson, crs="EPSG:{}".format(srid))
     else:
-        return f
+        return outjson
 
 
-def epa_delineate_watershed(comid, measure, as_gdf=False):
+def epa_delineate_watershed(comid, measure, srid=3005, as_gdf=False):
     """
     Given a location as comid and measure, return boundary of watershed upstream
     (as geojson/wgs84 or geodataframe/bc albers)
@@ -157,6 +166,8 @@ def epa_delineate_watershed(comid, measure, as_gdf=False):
         "optOutGeomFormat": "GEOJSON",
         "optOutPrettyPrint": 0,
     }
+    if srid:
+        parameters["optOutCS"] = ("EPSG:" + str(srid),)
 
     # make the resquest
     r = requests.get(EPA_WSD_DELINEATION_URL, params=parameters).json()
@@ -173,10 +184,14 @@ def epa_delineate_watershed(comid, measure, as_gdf=False):
             },
             "geometry": r["output"]["shape"],
         }
+
+        outjson = dict(type="FeatureCollection", features=[])
+        for result in [[f]]:
+            outjson["features"] += result
         if as_gdf:
-            return geojson2gdf(f)
+            return geopandas.GeoDataFrame.from_features(outjson, crs="EPSG:{}".format(srid))
         else:
-            return f
+            return outjson
     else:
         return None
 
@@ -225,6 +240,8 @@ def distance_name_match(in_df, name, column="gnis_name", keep_ranks=False):
     """
     # https://stackoverflow.com/questions/46198597/python-string-matching-exactly-equal-to-postgresql-similarity-function
     in_df["name_rank"] = in_df.apply(lambda row: similarity(row[column], name), axis=1)
+    # if there is more than one similar named stream within our tolerance, the name matching
+    # may not be adequate - just use the closest stream with similarity score > .3
     in_df["name_rank"][in_df["name_rank"] > 0.3] = 1
     in_df["distance_rank"] = in_df.apply(
         lambda row: (500 - row.distance_to_stream) / 500, axis=1
@@ -264,10 +281,8 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
     # load input points
     in_points = []
     in_points = geopandas.read_file(in_file, layer=in_layer)
-    srid = in_points.crs.to_epsg()
-
     # This just makes things simpler.
-    if srid != 3005:
+    if in_points.crs.to_epsg() != 3005:
         return "Input points must be BC Albers"
 
     # iterate through input points
@@ -281,10 +296,10 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
         Path(temp_folder).mkdir(parents=True, exist_ok=True)
 
         # find 10 closest streams in BC, within 500m
-        nearest_streams = fwa_neareststream(
+        nearest_streams = fwa_indexpoint(
             pt.geometry.x,
             pt.geometry.y,
-            srid,
+            3005,
             tolerance=500,
             num_features=10,
             as_gdf=True,
@@ -293,26 +308,28 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
         # The closest stream is not necessarily the one we want!
         # If we have a name column to compare against, try getting the best combination
         # of name and distance matching by comparing to the stream gnis_name
-        if in_name:
-            matched_stream = distance_name_match(nearest_streams, pt[in_name])
-        # if no name provided, just use the first result
-        else:
-            matched_stream = nearest_streams.head(1)
+        if not nearest_streams.empty:
+            if in_name:
+                matched_stream = distance_name_match(nearest_streams, pt[in_name])
+            # if no name provided, just use the first result
+            else:
+                matched_stream = nearest_streams.head(1)
 
-        # simplify the schema for standardization between BC/USA
-        matched_stream = matched_stream.drop(
-            ["wscode_ltree", "localcode_ltree", "linear_feature_id"], axis=1
-        )
-        matched_stream["comid"] = ""
+            # simplify the schema for standardization between BC/USA
+            matched_stream = matched_stream.drop(
+                ["wscode_ltree", "localcode_ltree", "linear_feature_id"], axis=1
+            )
+            matched_stream["comid"] = ""
 
-        # if the nearest stream is not in BC or is more than 150m from the
-        # input point, try the EPA service
-        if (
-            matched_stream.iloc[0]["bc_ind"] == "NOTBC"
+        # try the EPA service if:
+        # - no results from fwa_indexpoint() or
+        # - fwa_indexpoint() says notbc and point is >150m from stream
+        if nearest_streams.empty or (
+            matched_stream.iloc[0]["bc_ind"] is False
             and matched_stream.iloc[0]["distance_to_stream"] >= 150
         ):
             matched_stream = epa_index_point(
-                pt["src_x"], pt["src_y"], srid, 150, as_gdf=True
+                pt.geometry.x, pt.geometry.y, 3005, 150, as_gdf=True
             )
 
         # add input id column and value to point
@@ -376,8 +393,8 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
                 bcdata.get_dem(
                     expanded_bounds,
                     out_file=os.path.join(temp_folder, "dem.tif"),
-                    src_crs="EPSG:{}".format(srid),
-                    dst_crs="EPSG:{}".format(srid),
+                    src_crs="EPSG:3005",
+                    dst_crs="EPSG:3005",
                     resolution=25,
                 )
 
