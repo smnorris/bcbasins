@@ -39,12 +39,16 @@ def fwa_neareststream(x, y, srid=4326, tolerance=500, num_features=10, as_gdf=Fa
     """
     url = FWA_API_URL + "/functions/fwa_neareststream/items.json"
     # request the closest stream, get first record
-    r = requests.get(url, params={
-        "x": x,
-        "y": y,
-        "srid": srid,
-        "tolerance": tolerance,
-        "num_features": num_features})
+    r = requests.get(
+        url,
+        params={
+            "x": x,
+            "y": y,
+            "srid": srid,
+            "tolerance": tolerance,
+            "num_features": num_features,
+        },
+    )
     if as_gdf:
         return geojson2gdf(r.json()["features"])
     else:
@@ -68,7 +72,7 @@ def fwa_watershedhex(blkey, meas, as_gdf=False):
     as feature collection or geopandas dataframe
     """
     url = FWA_API_URL + "/functions/fwa_watershedhex/items.json"
-    param = {"blue_line_key": blkey, "downstream_route_measure": meas, "limit":10000}
+    param = {"blue_line_key": blkey, "downstream_route_measure": meas, "limit": 10000}
     r = requests.get(url, params=param)
     # convert returned feature to a FeatureCollection
     if as_gdf:
@@ -188,13 +192,13 @@ def find_ngrams(text: str, number: int = 3) -> set:
     if not text:
         return set()
 
-    words = [f'  {x} ' for x in re.split(r'\W+', text.lower()) if x.strip()]
+    words = [f"  {x} " for x in re.split(r"\W+", text.lower()) if x.strip()]
 
     ngrams = set()
 
     for word in words:
         for x in range(0, len(word) - number + 1):
-            ngrams.add(word[x:x+number])
+            ngrams.add(word[x : x + number])
 
     return ngrams
 
@@ -221,19 +225,36 @@ def distance_name_match(in_df, name, column="gnis_name", keep_ranks=False):
     """
     # https://stackoverflow.com/questions/46198597/python-string-matching-exactly-equal-to-postgresql-similarity-function
     in_df["name_rank"] = in_df.apply(lambda row: similarity(row[column], name), axis=1)
-    in_df["distance_rank"] = in_df.apply(lambda row: (500 - row.distance_to_stream) / 500, axis=1)
-    in_df["match_rank"] = in_df.apply(lambda row: row.name_rank * .8 + row.distance_rank * .2, axis=1)
+    in_df["name_rank"][in_df["name_rank"] > 0.3] = 1
+    in_df["distance_rank"] = in_df.apply(
+        lambda row: (500 - row.distance_to_stream) / 500, axis=1
+    )
+    in_df["match_rank"] = in_df.apply(
+        lambda row: row.name_rank * 0.8 + row.distance_rank * 0.2, axis=1
+    )
     # drop the ranking columns by default
     if keep_ranks:
-        return in_df.sort_values(["match_rank"], ascending=False).head(1).reset_index().drop(["index"], axis=1)
+        return (
+            in_df.sort_values(["match_rank"], ascending=False)
+            .head(1)
+            .reset_index()
+            .drop(["index"], axis=1)
+        )
     else:
-        return in_df.sort_values(["match_rank"], ascending=False).head(1).reset_index().drop(["index", "name_rank", "distance_rank", "match_rank"], axis=1)
+        return (
+            in_df.sort_values(["match_rank"], ascending=False)
+            .head(1)
+            .reset_index()
+            .drop(["index", "name_rank", "distance_rank", "match_rank"], axis=1)
+        )
 
 
 @click.command()
 @click.argument("in_file")
 @click.argument("in_id")
-@click.option("--in_name", "-n", help="Text column present in in_file for matching to stream name")
+@click.option(
+    "--in_name", "-n", help="Text column present in in_file for matching to stream name"
+)
 @click.option("--in_layer", "-l", help="Input layer held in in_file")
 @click.option("--points_only", help="Return only points", is_flag=True)
 def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=None):
@@ -260,7 +281,14 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
         Path(temp_folder).mkdir(parents=True, exist_ok=True)
 
         # find 10 closest streams in BC, within 500m
-        nearest_streams = fwa_neareststream(pt.geometry.x, pt.geometry.y, srid, tolerance=500, num_features=10, as_gdf=True)
+        nearest_streams = fwa_neareststream(
+            pt.geometry.x,
+            pt.geometry.y,
+            srid,
+            tolerance=500,
+            num_features=10,
+            as_gdf=True,
+        )
 
         # The closest stream is not necessarily the one we want!
         # If we have a name column to compare against, try getting the best combination
