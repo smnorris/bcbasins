@@ -55,6 +55,7 @@ def fwa_indexpoint(x, y, srid=4326, tolerance=500, num_features=10, as_gdf=False
             return geojson2gdf(r.json()["features"])
         else:
             return r.json()["features"][0]
+    # pg_featureserv returns 404 if no result, transform this into an empty dataframe or null
     else:
         if as_gdf:
             return pandas.DataFrame({'' : []})
@@ -68,10 +69,17 @@ def fwa_watershedatmeasure(blkey, meas, as_gdf=False):
     url = FWA_API_URL + "/functions/fwa_watershedatmeasure/items.json"
     param = {"blue_line_key": blkey, "downstream_route_measure": meas}
     r = requests.get(url, params=param)
-    if as_gdf:
-        return geojson2gdf(r.json()["features"])
+    if r.status_code == requests.codes.ok:
+        if as_gdf:
+            return geojson2gdf(r.json()["features"])
+        else:
+            return r.json()["features"][0]
+    # pg_featureserv returns 404 if no result, transform this into an empty dataframe or null
     else:
-        return r.json()["features"][0]
+        if as_gdf:
+            return pandas.DataFrame({'' : []})
+        else:
+            return None
 
 
 def fwa_watershedhex(blkey, meas, as_gdf=False):
@@ -364,11 +372,18 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
                     comid, downstream_route_measure, as_gdf=True
                 )
 
-            # add id to watershed
-            wsd.at[0, in_id] = pt[in_id]
-
-            # write output shapefile
-            wsd.to_file(os.path.join(temp_folder, "wsd.shp"))
+            # if we have a wsd poly, add id and write to shape
+            if not wsd.empty:
+                wsd.at[0, in_id] = pt[in_id]
+                wsd.to_file(os.path.join(temp_folder, "wsd.shp"))
+            # We are presuming that if nothing is returned from the
+            # FWA_WatershedAtMeasure call, DEM postprocessing is required.
+            # (to handle cases where a point is in a watershed with nothing
+            # else upstream). This is only true because we are only matching to
+            # streams in BC and lower 48 - there should not be any other
+            # cases where the wsd gdf is empty
+            else:
+                wsd = pandas.DataFrame(data={'refine_method': ["DEM"]})
 
             # if we are postprocessing with DEM, get additional data
             if wsd.iloc[0]["refine_method"] == "DEM":
