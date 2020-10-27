@@ -21,7 +21,6 @@ def merge(wksp, in_id):
 
     # merge points
     # https://stackoverflow.com/questions/48874113/concat-multiple-shapefiles-via-geopandas
-    """
     shapefiles = []
     for folder in workpath.iterdir():
         if (folder / "point.shp").exists():
@@ -32,7 +31,7 @@ def merge(wksp, in_id):
     )
     gdf.crs = {"init": "epsg:3005"}
     gdf.to_file("referenced_points.shp", layer="referenced_points", driver="ESRI Shapefile")
-    """
+
 
     # merge watershed polys
     gdf_list = []
