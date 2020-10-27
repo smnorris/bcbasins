@@ -21,6 +21,7 @@ def merge(wksp, in_id):
 
     # merge points
     # https://stackoverflow.com/questions/48874113/concat-multiple-shapefiles-via-geopandas
+    """
     shapefiles = []
     for folder in workpath.iterdir():
         if (folder / "point.shp").exists():
@@ -31,21 +32,21 @@ def merge(wksp, in_id):
     )
     gdf.crs = {"init": "epsg:3005"}
     gdf.to_file("referenced_points.shp", layer="referenced_points", driver="ESRI Shapefile")
+    """
 
     # merge watershed polys
     gdf_list = []
     for folder in workpath.iterdir():
         if (folder / "wsd.shp").exists():
-            gdf_list.append(geopandas.read_file(folder / "wsd.shp"))
-        elif (folder / "postprocess.shp").exists() and (folder / "refined.shp").exists():
-            postprocess = geopandas.read_file(folder / "postprocess.shp")
+            wsd = geopandas.read_file(folder / "wsd.shp")
+            gdf_list.append(wsd)
+        if (folder / "refined.shp").exists():
             ref = geopandas.read_file(folder / "refined.shp")
             # add values to ref shapefile, set from the postprocess file
-            ref[in_id].values[:] = postprocess[in_id]
-            ref["wscode"].values[:] = postprocess["wscode"]
-            ref["localcode"].values[:] = postprocess["localcode"]
-            ref["refine_met"].values[:] = "DEM"
-            gdf_list.append(postprocess)
+            ref[in_id] = wsd[in_id][0]
+            ref["wscode_ltr"] = wsd["wscode_ltr"][0]
+            ref["localcode_"] = wsd["localcode_"][0]
+            ref["refine_met"] = "DEM"
             gdf_list.append(ref)
 
     gdf = pandas.concat(gdf_list).pipe(
@@ -55,7 +56,7 @@ def merge(wksp, in_id):
 
     # dissolve on id, buffer slightly out and back in
     dissolved = gdf.dissolve(by=in_id)
-    dissolved["geometry"] = dissolved.buffer(.1).buffer(-.1)
+    dissolved["geometry"] = dissolved.buffer(-.1).buffer(.1)
     out = dissolved.reset_index()
 
     # rather than monkey with shapely geoms, write merged polys to file
@@ -68,7 +69,7 @@ def merge(wksp, in_id):
         "ogr2ogr",
         "watersheds.shp",
         "-sql",
-        f"SELECT {in_id}, wscode_ltr as wscode, localcode_ as localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(Geometry)) as Geometry FROM wsd",
+        f"SELECT {in_id}, wscode_ltr as wscode, localcode_ as localcode, refine_met, ST_MakePolygon(ST_ExteriorRing(ST_Union(Geometry))) as Geometry FROM wsd GROUP BY {in_id}, wscode_ltr, localcode_, refine_met",
         "-dialect",
         "SQLITE",
         "wsd.shp"
