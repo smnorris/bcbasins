@@ -1,5 +1,5 @@
 wheelhouse/GDAL-3.0.4-cp36-cp36m-win_amd64.whl
-wheelhouse/Fiona-1.8.18-cp36-cp36m-win_amd64.whl
+wheelhouse/Fiona-1.8.13-cp36-cp36m-win_amd64.whl
 wheelhouse/rasterio-1.1.8-cp36-cp36m-win_amd64.whl
 requests
 click
