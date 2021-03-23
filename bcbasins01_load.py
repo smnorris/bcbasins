@@ -129,33 +129,40 @@ def epa_index_point(x, y, srid=4326, tolerance=150, as_gdf=False):
     # make the resquest
     r = requests.get(EPA_POINT_SERVICE_URL, params=parameters).json()
 
-    # extract the coordinates on the nearest stream
-    x_indexed, y_indexed = r["output"]["end_point"]["coordinates"]
+    # if we have a result, process further
+    if r["status"]["status_code"] == 0:
+        # extract the coordinates on the nearest stream
+        x_indexed, y_indexed = r["output"]["end_point"]["coordinates"]
 
-    # reproject if necessary
-    if srid != 4326:
-        x_indexed, y_indexed = transform(request_srs, in_srs, x_indexed, y_indexed)
+        # reproject if necessary
+        if srid != 4326:
+            x_indexed, y_indexed = transform(request_srs, in_srs, x_indexed, y_indexed)
 
-    # build a feature from the coordinates, matching properties of FWA for convenience
-    f = {
-        "type": "Feature",
-        "properties": {
-            "gnis_name": r["output"]["ary_flowlines"][0]["gnis_name"],
-            "blue_line_key": None,
-            "distance_to_stream": r["output"]["path_distance"],
-            "downstream_route_measure": r["output"]["ary_flowlines"][0]["fmeasure"],
-            "bc_ind": "USA",
-            "comid": r["output"]["ary_flowlines"][0]["comid"],
-        },
-        "geometry": {"type": "Point", "coordinates": [x_indexed, y_indexed]},
-    }
-    outjson = dict(type="FeatureCollection", features=[])
-    for result in [[f]]:
-        outjson["features"] += result
-    if as_gdf:
-        return geopandas.GeoDataFrame.from_features(outjson, crs="EPSG:{}".format(srid))
+        # build a feature from the coordinates, matching properties of FWA for convenience
+        f = {
+            "type": "Feature",
+            "properties": {
+                "gnis_name": r["output"]["ary_flowlines"][0]["gnis_name"],
+                "blue_line_key": None,
+                "distance_to_stream": r["output"]["path_distance"],
+                "downstream_route_measure": r["output"]["ary_flowlines"][0]["fmeasure"],
+                "bc_ind": "USA",
+                "comid": r["output"]["ary_flowlines"][0]["comid"],
+            },
+            "geometry": {"type": "Point", "coordinates": [x_indexed, y_indexed]},
+        }
+        outjson = dict(type="FeatureCollection", features=[])
+        for result in [[f]]:
+            outjson["features"] += result
+        if as_gdf:
+            return geopandas.GeoDataFrame.from_features(outjson, crs="EPSG:{}".format(srid))
+        else:
+            return outjson
     else:
-        return outjson
+        if as_gdf:
+            return pandas.DataFrame({'' : []})
+        else:
+            return None
 
 
 def epa_delineate_watershed(comid, measure, srid=3005, as_gdf=False):
@@ -340,78 +347,82 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
                 pt.geometry.x, pt.geometry.y, 3005, 150, as_gdf=True
             )
 
-        # add input id column and value to point
-        matched_stream.at[0, in_id] = pt[in_id]
+        if not matched_stream.empty:
+            # add input id column and value to point
+            matched_stream.at[0, in_id] = pt[in_id]
 
-        # write indexed point to shp
-        matched_stream.to_file(os.path.join(temp_folder, "point.shp"))
+            # write indexed point to shp
+            matched_stream.to_file(os.path.join(temp_folder, "point.shp"))
 
-        # drop geom for easy dump to stdout so user know what stream we've matched to
-        click.echo("")
-        click.echo("* MATCHED STREAM")
-        click.echo(pprint(matched_stream.iloc[0].drop("geometry").to_dict()))
+            # drop geom for easy dump to stdout so user know what stream we've matched to
+            click.echo("")
+            click.echo("* MATCHED STREAM")
+            click.echo(pprint(matched_stream.iloc[0].drop("geometry").to_dict()))
 
-        # extract the required values from matched_stream gdf, just to
-        # keep code below tidier
-        blue_line_key = matched_stream.iloc[0]["blue_line_key"]
-        downstream_route_measure = matched_stream.iloc[0]["downstream_route_measure"]
-        comid = matched_stream.iloc[0]["comid"]
+            # extract the required values from matched_stream gdf, just to
+            # keep code below tidier
+            blue_line_key = matched_stream.iloc[0]["blue_line_key"]
+            downstream_route_measure = matched_stream.iloc[0]["downstream_route_measure"]
+            comid = matched_stream.iloc[0]["comid"]
 
-        # if not just indexing points, start deriving the watershed
-        if not points_only:
+            # if not just indexing points, start deriving the watershed
+            if not points_only:
 
-            # Canadian streams
-            if matched_stream.iloc[0]["bc_ind"] != "USA":
-                wsd = fwa_watershedatmeasure(
-                    blue_line_key, downstream_route_measure, as_gdf=True
-                )
+                # Canadian streams
+                if matched_stream.iloc[0]["bc_ind"] != "USA":
+                    wsd = fwa_watershedatmeasure(
+                        blue_line_key, downstream_route_measure, as_gdf=True
+                    )
 
-            # USA streams (only lower 48 states supported)
-            else:
-                wsd = epa_delineate_watershed(
-                    comid, downstream_route_measure, as_gdf=True
-                )
+                # USA streams (only lower 48 states supported)
+                else:
+                    wsd = epa_delineate_watershed(
+                        comid, downstream_route_measure, as_gdf=True
+                    )
 
-            # if we have a wsd poly, add id and write to shape
-            if not wsd.empty:
-                wsd.at[0, in_id] = pt[in_id]
-                wsd.to_file(os.path.join(temp_folder, "wsd.shp"))
-            # We are presuming that if nothing is returned from the
-            # FWA_WatershedAtMeasure call, DEM postprocessing is required.
-            # (to handle cases where a point is in a watershed with nothing
-            # else upstream). This is only true because we are only matching to
-            # streams in BC and lower 48 - there should not be any other
-            # cases where the wsd gdf is empty
-            else:
-                wsd = pandas.DataFrame(data={'refine_method': ["DEM"]})
+                # if we have a wsd poly, add id and write to shape
+                if not wsd.empty:
+                    wsd.at[0, in_id] = pt[in_id]
+                    wsd.to_file(os.path.join(temp_folder, "wsd.shp"))
+                # We are presuming that if nothing is returned from the
+                # FWA_WatershedAtMeasure call, DEM postprocessing is required.
+                # (to handle cases where a point is in a watershed with nothing
+                # else upstream). This is only true because we are only matching to
+                # streams in BC and lower 48 - there should not be any other
+                # cases where the wsd gdf is empty
+                else:
+                    wsd = pandas.DataFrame(data={'refine_method': ["DEM"]})
 
-            # if we are postprocessing with DEM, get additional data
-            if wsd.iloc[0]["refine_method"] == "DEM":
-                click.echo("requesting additional data for {}".format(pt[in_id]))
-                # fwapg requests
-                hexgrid = fwa_watershedhex(
-                    blue_line_key, downstream_route_measure, as_gdf=True
-                )
-                hexgrid.to_file(os.path.join(temp_folder, "hexgrid.shp"))
-                pourpoints = fwa_watershedstream(
-                    blue_line_key, downstream_route_measure, as_gdf=True
-                )
-                pourpoints.to_file(os.path.join(temp_folder, "pourpoints.shp"))
-                # DEM of hex watershed plus 250m
-                bounds = list(hexgrid.geometry.total_bounds)
-                expansion = 250
-                xmin = bounds[0] - expansion
-                ymin = bounds[1] - expansion
-                xmax = bounds[2] + expansion
-                ymax = bounds[3] + expansion
-                expanded_bounds = (xmin, ymin, xmax, ymax)
-                bcdata.get_dem(
-                    expanded_bounds,
-                    out_file=os.path.join(temp_folder, "dem.tif"),
-                    src_crs="EPSG:3005",
-                    dst_crs="EPSG:3005",
-                    resolution=25,
-                )
+                # if we are postprocessing with DEM, get additional data
+                if wsd.iloc[0]["refine_method"] == "DEM":
+                    click.echo("requesting additional data for {}".format(pt[in_id]))
+                    # fwapg requests
+                    hexgrid = fwa_watershedhex(
+                        blue_line_key, downstream_route_measure, as_gdf=True
+                    )
+                    hexgrid.to_file(os.path.join(temp_folder, "hexgrid.shp"))
+                    pourpoints = fwa_watershedstream(
+                        blue_line_key, downstream_route_measure, as_gdf=True
+                    )
+                    pourpoints.to_file(os.path.join(temp_folder, "pourpoints.shp"))
+                    # DEM of hex watershed plus 250m
+                    bounds = list(hexgrid.geometry.total_bounds)
+                    expansion = 250
+                    xmin = bounds[0] - expansion
+                    ymin = bounds[1] - expansion
+                    xmax = bounds[2] + expansion
+                    ymax = bounds[3] + expansion
+                    expanded_bounds = (xmin, ymin, xmax, ymax)
+                    bcdata.get_dem(
+                        expanded_bounds,
+                        out_file=os.path.join(temp_folder, "dem.tif"),
+                        src_crs="EPSG:3005",
+                        dst_crs="EPSG:3005",
+                        resolution=25,
+                    )
+        else:
+            click.echo("")
+            click.echo("NO MATCHED STREAM - IS POINT IN BC or USA LOWER 48?")
 
 
 if __name__ == "__main__":
