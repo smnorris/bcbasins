@@ -211,6 +211,24 @@ def epa_delineate_watershed(comid, measure, srid=3005, as_gdf=False):
         return None
 
 
+def hydroshed(x, y, srid, as_gdf=False):
+    """Get boundary of hydroshed watersheds upstream of point"""
+    url = FWA_API_URL + "/functions/hydroshed/items.json"
+    param = {"x": x, "y": y, "srid": srid}
+    r = requests.get(url, params=param)
+    if r.status_code == requests.codes.ok:
+        if as_gdf:
+            return geojson2gdf(r.json()["features"])
+        else:
+            return r.json()["features"][0]
+    # pg_featureserv returns 404 if no result, transform this into an empty dataframe or null
+    else:
+        if as_gdf:
+            return pandas.DataFrame({'' : []})
+        else:
+            return None
+
+
 def find_ngrams(text: str, number: int = 3) -> set:
     """
     returns a set of ngrams for the given string
@@ -423,6 +441,16 @@ def create_watersheds(in_file, in_id, in_name=None, in_layer=None, points_only=N
         else:
             click.echo("")
             click.echo("NO MATCHED STREAM - IS POINT IN BC or USA LOWER 48?")
+            if not points_only:
+                click.echo("Attempting to process point with hydrosheds data")
+                click.echo("WARNING - hydroshed boundaries are much lower precision than FWA")
+                click.echo("WARNING - this script does not refine hydroshed boundaries, all of intersecting polygon is included!")
+                click.echo("WARNING - if watershed for this point includes areas in BC, the portion of output boundary in BC will not match FWA watershed boundaries!")
+                wsd = hydroshed(pt.geometry.x, pt.geometry.y, 3005, as_gdf=True)
+                # if we have a wsd poly, add id and write to shape
+                if not wsd.empty:
+                    wsd.at[0, in_id] = pt[in_id]
+                    wsd.to_file(os.path.join(temp_folder, "wsd.shp"))
 
 
 if __name__ == "__main__":
